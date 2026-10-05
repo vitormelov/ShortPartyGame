@@ -1,4 +1,4 @@
-import { ARENA_H, HUD_H, SCREEN_W } from '@shared/arena';
+﻿import { ARENA_H, HUD_H, SCREEN_W } from '@shared/arena';
 import type { FeedSnapshot } from '@shared/feed';
 import { CHARACTERS, type PlayerId } from '@shared/types';
 import { PAL, heart, sprite, text } from '../core/draw';
@@ -49,7 +49,19 @@ export function drawTopHud(ctx: CanvasRenderingContext2D, snap: FeedSnapshot, lo
       return;
     }
     const space = chipW - 12;
-    if (snap.maxLives * 6 <= space) {
+    if (snap.shields.includes(p.info.id)) {
+      // shield won on an X1 bet
+      ctx.fillStyle = PAL.cyan;
+      ctx.fillRect(x + chipW - 13, 3, 5, 5);
+      ctx.fillRect(x + chipW - 12, 8, 3, 2);
+    }
+    if (p.info.id === snap.spotlight) {
+      // tiny star on the chip of whoever is in the spotlight
+      ctx.fillStyle = PAL.yellow;
+      ctx.fillRect(x + chipW - 6, 3, 1, 5);
+      ctx.fillRect(x + chipW - 8, 5, 5, 1);
+    }
+    if (snap.maxLives * 6 <= space && p.lives <= snap.maxLives) {
       for (let h = 0; h < snap.maxLives; h++) {
         const full = h < p.lives;
         sprite(ctx, MINI_HEART, x + 11 + h * 6, 5, { r: full ? PAL.red : '#3a2a50' });

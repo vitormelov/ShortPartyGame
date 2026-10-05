@@ -20,11 +20,14 @@ export class ResultsScreen implements Screen {
     const ps = snap.players;
     const byFlops = [...ps].sort((a, b) => b.stats.flops - a.stats.flops)[0];
     if (byFlops && byFlops.stats.flops > 0) this.awards.push({ title: 'REI DO FLOP', player: byFlops, detail: [`${byFlops.stats.flops} MORTES`, 'NO RETORNO'] });
+    const hater = [...ps].sort((a, b) => b.stats.assists - a.stats.assists)[0];
+    if (hater && hater.stats.assists > 0) this.awards.push({ title: 'HATER DO ANO', player: hater, detail: [`${hater.stats.assists} ASSISTÊNCIAS`, 'NOS COMENTÁRIOS'] });
+    const viral = [...ps].sort((a, b) => b.stats.bonusLives - a.stats.bonusLives)[0];
+    if (viral && viral.stats.bonusLives > 0) this.awards.push({ title: 'VIRALIZOU', player: viral, detail: [`+${viral.stats.bonusLives} VIDA EXTRA`] });
     const fastest = [...ps].sort((a, b) => a.stats.fastestFlop - b.stats.fastestFlop)[0];
     if (fastest && fastest.stats.fastestFlop < Infinity)
       this.awards.push({ title: 'MEMÓRIA PEIXE', player: fastest, detail: [`MORREU EM ${fastest.stats.fastestFlop.toFixed(2)}s`, 'APÓS VOLTAR'] });
-    const viral = [...ps].sort((a, b) => b.stats.bonusLives - a.stats.bonusLives)[0];
-    if (viral && viral.stats.bonusLives > 0) this.awards.push({ title: 'VIRALIZOU', player: viral, detail: [`+${viral.stats.bonusLives} VIDA EXTRA`] });
+    this.awards = this.awards.slice(0, 3); // only room for three
   }
 
   update(dt: number): void {

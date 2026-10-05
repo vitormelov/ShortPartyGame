@@ -16,6 +16,14 @@ const CARDS = [
   { name: 'TERMOS', color: '#8a2a30' },
   { name: 'BOLHA SOCIAL', color: '#c8468a' },
   { name: 'CANCELAMENTO', color: '#2a7ab8' },
+  { name: 'HATERS', color: '#a82a3a' },
+  { name: 'FLAME WAR', color: '#a8844a' },
+  { name: 'CORDA QUENTE', color: '#c84a1e' },
+  { name: 'FILTRO CERTO', color: '#2ab8c8' },
+  { name: 'NÃO OLHE', color: '#c82a2a' },
+  { name: 'DANCINHA', color: '#c83a9a' },
+  { name: 'PONG', color: '#3bc84a' },
+  { name: 'ENQUETE', color: '#c84aa8' },
   { name: 'ANÚNCIO', color: '#3b6ee8' },
 ];
 

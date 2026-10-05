@@ -116,6 +116,10 @@ function drawPlayer(ctx: CanvasRenderingContext2D, p: BPlayer, time: number): vo
 }
 
 export const bombRenderer: MinigameRenderer = {
+  positions(raw) {
+    return (raw as BombState).players.filter((p) => p.status === 'alive').map((p) => [p.id, OX + p.x * T, OY + p.y * T - 4]);
+  },
+
   render(ctx, raw, time, localId: PlayerId) {
     const st = raw as BombState;
 

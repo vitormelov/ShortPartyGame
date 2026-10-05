@@ -3,6 +3,8 @@
 export interface MinigameRenderer {
   /** Draws the minigame in arena-local coordinates (the caller translates below the HUD). */
   render(ctx: CanvasRenderingContext2D, state: unknown, time: number, localId: PlayerId): void;
+  /** Arena positions of living players (used by the spotlight). */
+  positions?(state: unknown): Array<[PlayerId, number, number]>;
 }
 
 /** Deterministic hash noise for decorative details (stars, dithering) without storing anything. */

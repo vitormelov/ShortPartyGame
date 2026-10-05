@@ -1,4 +1,4 @@
-import { ARENA_H, ARENA_W } from '@shared/arena';
+﻿import { ARENA_H, ARENA_W } from '@shared/arena';
 import { BEAM_HALF, DASH_COOLDOWN, DEATH_ANIM, FIELD, FIRE_TIME, type Beam, type BeamPlayer, type BeamState } from '@shared/minigames/beam/logic';
 import { CHARACTERS, type PlayerId } from '@shared/types';
 import { PAL, sprite } from '../core/draw';
@@ -102,6 +102,10 @@ function drawPlayer(ctx: CanvasRenderingContext2D, p: BeamPlayer, time: number):
 }
 
 export const beamRenderer: MinigameRenderer = {
+  positions(raw) {
+    return (raw as BeamState).players.filter((p) => p.status === 'alive').map((p) => [p.id, p.x, p.y - 3]);
+  },
+
   render(ctx, raw, time, localId: PlayerId) {
     const st = raw as BeamState;
     drawBackground(ctx, time);

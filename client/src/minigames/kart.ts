@@ -132,6 +132,10 @@ function drawKart(ctx: CanvasRenderingContext2D, k: Kart, time: number): void {
 }
 
 export const kartRenderer: MinigameRenderer = {
+  positions(raw) {
+    return (raw as KartState).karts.filter((k) => k.status === 'race' || k.status === 'done').map((k) => [k.id, k.x, k.y]);
+  },
+
   render(ctx, raw, time, localId: PlayerId) {
     const st = raw as KartState;
     drawBackground(ctx, time);

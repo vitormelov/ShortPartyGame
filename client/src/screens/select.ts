@@ -1,4 +1,5 @@
 ﻿import { SCREEN_H, SCREEN_W } from '@shared/arena';
+import { MINIGAMES } from '@shared/minigames';
 import { CHARACTERS, DEFAULT_CONFIG, MAX_PLAYERS, MIN_PLAYERS, type BotDifficulty, type MatchConfig, type PlayerInfo } from '@shared/types';
 import { PAL, heart, outlinedText, panel, portrait, text } from '../core/draw';
 import { LocalTransport } from '../net/LocalTransport';
@@ -46,6 +47,9 @@ interface Setup {
   ret: number;
   speed: number;
   ads: number;
+  /** 0 = every minigame (normal feed); n = only MINIGAMES[n - 1] (test mode). */
+  game: number;
+  tutorials: boolean;
 }
 
 let saved: Setup | null = null;
@@ -62,11 +66,15 @@ function defaultSetup(): Setup {
     ret: 1,
     speed: 1,
     ads: 1,
+    game: 0,
+    tutorials: true,
   };
 }
 
-// Cursor rows: 0 = slots 0-3, 1 = slots 4-7, 2 = lives, 3 = clip, 4 = return, 5 = speed, 6 = ads, 7 = start
-const ROW_START = 7;
+// Cursor rows: 0 = slots 0-3, 1 = slots 4-7, 2 = lives, 3 = clip, 4 = return, 5 = speed, 6 = ads, 7 = game,
+// 8 = tutorials, 9 = start
+const ROW_START = 9;
+const GAME_OPTIONS = ['TODOS', ...MINIGAMES.map((d) => d.name)];
 
 export class SelectScreen implements Screen {
   private setup: Setup;
@@ -145,6 +153,12 @@ export class SelectScreen implements Screen {
     } else if (this.row === 6 && lr) {
       s.ads = (s.ads + lr + AD_OPTIONS.length) % AD_OPTIONS.length;
       move();
+    } else if (this.row === 7 && lr) {
+      s.game = (s.game + lr + GAME_OPTIONS.length) % GAME_OPTIONS.length;
+      move();
+    } else if (this.row === 8 && (lr || inp.pressed('action'))) {
+      s.tutorials = !s.tutorials;
+      move();
     } else if (this.row === ROW_START && inp.pressed('action')) {
       this.start();
     }
@@ -182,6 +196,8 @@ export class SelectScreen implements Screen {
       returnChance: RETURN_OPTIONS[s.ret].value,
       speedChance: SPEED_OPTIONS[s.speed].value,
       adChance: AD_OPTIONS[s.ads].value,
+      onlyGame: s.game > 0 ? MINIGAMES[s.game - 1].id : null,
+      tutorials: s.tutorials,
     };
     this.app.sfx.play('go');
     this.app.go(new GameScreen(this.app, new LocalTransport(players, config, localId)));
@@ -203,19 +219,19 @@ export class SelectScreen implements Screen {
       const r = Math.floor(i / 4);
       const c = i % 4;
       const x = 12 + c * 92;
-      const y = 34 + r * 59;
+      const y = 32 + r * 55;
       const selected = this.row === r && this.col === c;
       const ch = CHARACTERS[slot.character];
       const fill = slot.kind === 'empty' ? '#1a1030' : slot.kind === 'you' ? '#2e1d55' : PAL.panel;
-      panel(ctx, x, y, 84, 56, fill, selected ? (Math.floor(this.t * 6) % 2 ? PAL.yellow : PAL.white) : slot.kind === 'you' ? ch.color : PAL.panelLight);
+      panel(ctx, x, y, 84, 52, fill, selected ? (Math.floor(this.t * 6) % 2 ? PAL.yellow : PAL.white) : slot.kind === 'you' ? ch.color : PAL.panelLight);
       if (slot.kind === 'empty') {
-        text(ctx, '+ BOT', x + 42, y + 24, PAL.grey, 8, 'center');
+        text(ctx, '+ BOT', x + 42, y + 22, PAL.grey, 8, 'center');
         continue;
       }
-      portrait(ctx, slot.character, x + 26, y + 4, 2);
-      text(ctx, slot.kind === 'you' ? 'VOCÊ' : ch.name, x + 42, y + 38, slot.kind === 'you' ? PAL.yellow : PAL.white, 8, 'center');
-      text(ctx, slot.kind === 'you' ? ch.name : DIFF_LABEL[slot.difficulty], x + 42, y + 47, slot.kind === 'you' ? ch.color : DIFF_COLOR[slot.difficulty], 8, 'center');
-      text(ctx, slot.kind === 'you' ? 'P1' : 'BOT', x + 4, y + 4, slot.kind === 'you' ? PAL.yellow : PAL.grey);
+      portrait(ctx, slot.character, x + 26, y + 2, 2);
+      text(ctx, slot.kind === 'you' ? 'VOCÊ' : ch.name, x + 42, y + 35, slot.kind === 'you' ? PAL.yellow : PAL.white, 8, 'center');
+      text(ctx, slot.kind === 'you' ? ch.name : DIFF_LABEL[slot.difficulty], x + 42, y + 43, slot.kind === 'you' ? ch.color : DIFF_COLOR[slot.difficulty], 8, 'center');
+      text(ctx, slot.kind === 'you' ? 'P1' : 'BOT', x + 4, y + 3, slot.kind === 'you' ? PAL.yellow : PAL.grey);
     }
 
     const opt = (row: number, label: string, value: string, y: number) => {
@@ -223,19 +239,22 @@ export class SelectScreen implements Screen {
       text(ctx, label, 16, y, sel ? PAL.yellow : PAL.white);
       text(ctx, sel ? `< ${value} >` : value, 140, y, sel ? PAL.yellow : PAL.cyan, 8, 'center');
     };
-    opt(2, 'VIDAS', `${s.lives}`, 153);
-    heart(ctx, 172, 153);
-    opt(3, 'CLIPE', CLIP_OPTIONS[s.clip].label, 164);
-    opt(4, 'RETORNO', RETURN_OPTIONS[s.ret].label, 175);
-    opt(5, 'ACELERAR', SPEED_OPTIONS[s.speed].label, 186);
-    opt(6, 'ANÚNCIOS', AD_OPTIONS[s.ads].label, 197);
+    opt(2, 'VIDAS', `${s.lives}`, 143);
+    heart(ctx, 172, 143);
+    opt(3, 'CLIPE', CLIP_OPTIONS[s.clip].label, 153);
+    opt(4, 'RETORNO', RETURN_OPTIONS[s.ret].label, 163);
+    opt(5, 'ACELERAR', SPEED_OPTIONS[s.speed].label, 173);
+    opt(6, 'ANÚNCIOS', s.game > 0 ? '-' : AD_OPTIONS[s.ads].label, 183);
+    opt(7, 'JOGO', GAME_OPTIONS[s.game], 193);
+    opt(8, 'TUTORIAL', s.tutorials ? 'LIGADO' : 'DESLIGADO', 203);
 
     const sel = this.row === ROW_START;
     const blink = sel && Math.floor(this.t * 4) % 2 === 0;
-    panel(ctx, 236, 160, 136, 32, blink ? PAL.pink : sel ? '#c83a8a' : PAL.panel, sel ? PAL.white : PAL.panelLight);
-    outlinedText(ctx, 'INICIAR', 304, 169, sel ? PAL.white : PAL.grey, 16);
+    panel(ctx, 236, 150, 136, 32, blink ? PAL.pink : sel ? '#c83a8a' : PAL.panel, sel ? PAL.white : PAL.panelLight);
+    outlinedText(ctx, 'INICIAR', 304, 159, sel ? PAL.white : PAL.grey, 16);
 
     const hint = this.row <= 1 ? 'ESPAÇO: TROCAR' : this.row === ROW_START ? 'ESPAÇO: COMEÇAR' : 'A/D: ALTERAR';
-    text(ctx, hint, 304, 196, PAL.grey, 8, 'center');
+    text(ctx, hint, 304, 190, PAL.grey, 8, 'center');
+    if (s.game > 0) text(ctx, 'MODO TESTE', 304, 202, PAL.pink, 8, 'center');
   }
 }

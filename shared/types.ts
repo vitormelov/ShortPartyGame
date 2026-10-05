@@ -57,6 +57,12 @@ export type GameEvent =
   | { type: 'clipStart'; isReturn: boolean; speed: number }
   | { type: 'countdown'; n: number }
   | { type: 'notification' }
+  // emitted by the poll, applied by the director:
+  | { type: 'pollResult'; kind: 'gift' | 'spotlight' | 'bet'; winners: PlayerId[]; votes: Array<[PlayerId, PlayerId]> }
+  | { type: 'betResolved'; dead: PlayerId; winners: PlayerId[] }
+  // X1 duel:
+  | { type: 'duelResult'; winner: PlayerId; loser: PlayerId; torcida: PlayerId[] }
+  | { type: 'shieldUsed'; player: PlayerId }
   | { type: 'gameOver'; winners: PlayerId[] };
 
 export interface MatchConfig {
@@ -68,6 +74,12 @@ export interface MatchConfig {
   speedChance: number; // 0..1 chance a clip plays fast-forwarded (1.25x/1.5x/2x)
   adChance: number; // 0..1 chance the next clip is a skippable ad
   notifChance: number; // 0..1 chance a clip gets a big notification pop-up
+  pollChance: number; // 0..1 chance the next clip is an ENQUETE
+  duelChance: number; // 0..1 chance the next clip is an X1 duel
+  /** Test mode: only this minigame (by id), no ads or polls. null = the normal feed. */
+  onlyGame: string | null;
+  /** Show the title card with the name and controls when a new clip starts. */
+  tutorials: boolean;
 }
 
 export const DEFAULT_CONFIG: MatchConfig = {
@@ -79,4 +91,8 @@ export const DEFAULT_CONFIG: MatchConfig = {
   speedChance: 0.2,
   adChance: 0.12,
   notifChance: 0.15,
+  pollChance: 0.1,
+  duelChance: 0.08,
+  onlyGame: null,
+  tutorials: true,
 };

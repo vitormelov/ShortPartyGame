@@ -182,6 +182,10 @@ function drawPlayer(ctx: CanvasRenderingContext2D, p: MimicPlayer, st: MimicStat
 }
 
 export const mimicRenderer: MinigameRenderer = {
+  positions(raw) {
+    return (raw as MimicState).players.filter((p) => p.status === 'alive').map((p) => [p.id, p.x, RAFT_Y - 6]);
+  },
+
   render(ctx, raw, time, localId: PlayerId) {
     const st = raw as MimicState;
     drawStage(ctx, time);

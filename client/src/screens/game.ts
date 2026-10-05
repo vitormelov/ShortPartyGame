@@ -3,6 +3,7 @@ import { NOTIFICATION_TIME, type FeedSnapshot } from '@shared/feed';
 import { CHARACTERS, type PlayerId } from '@shared/types';
 import { PAL, outlinedText, panel, portrait, text } from '../core/draw';
 import { drawSocialOverlay, drawTopHud } from '../feed/hud';
+import { drawComments, drawHaterPanel } from '../feed/haters';
 import { CLIP_COLORS, RENDERERS } from '../minigames';
 import type { Transport } from '../net/transport';
 import { ResultsScreen } from './results';
@@ -57,6 +58,11 @@ export class GameScreen implements Screen {
 
   private name(id: PlayerId): string {
     return this.snap.players.find((p) => p.info.id === id)?.info.name ?? '?';
+  }
+
+  private lifePopup(id: PlayerId): void {
+    this.flashes.set(id, 0.6);
+    this.popups.push({ text: '+1', x: this.chipX(id) + 4, y: 14, color: PAL.green, t: 0 });
   }
 
   private chipX(id: PlayerId): number {
@@ -117,10 +123,32 @@ export class GameScreen implements Screen {
           this.app.sfx.play('bonusLife');
           this.flashes.set(e.player, 0.5);
           this.popups.push({ text: '+1', x: this.chipX(e.player) + 4, y: 14, color: PAL.green, t: 0 });
-          this.banners.push({ title: 'VIRALIZOU!', sub: `${this.name(e.player)}: ${e.reason} +1`, color: PAL.green, t: 0 });
+          // The X1 screen announces its own winner.
+          if (e.reason !== 'VENCEU O X1') this.banners.push({ title: 'VIRALIZOU!', sub: `${this.name(e.player)}: ${e.reason} +1`, color: PAL.green, t: 0 });
           break;
         case 'sfx':
           this.app.sfx.play(e.name);
+          break;
+        case 'pollResult':
+          // The poll screen shows the outcome itself; just pop the hearts for gifts.
+          if (e.kind === 'gift') for (const id of e.winners) this.lifePopup(id);
+          break;
+        case 'betResolved': {
+          this.app.sfx.play(e.winners.length ? 'bonusLife' : 'lifeLost');
+          for (const id of e.winners) this.lifePopup(id);
+          const mine = e.winners.includes(this.localId);
+          const who = e.winners.length ? `${e.winners.length} ACERTARAM +1` : 'NINGUÉM ACERTOU';
+          this.banners.push({ title: mine ? 'ACERTOU A APOSTA!' : 'APOSTA ENCERRADA', sub: `${this.name(e.dead)} MORREU 1º - ${who}`, color: mine ? PAL.green : PAL.pink, t: 0 });
+          break;
+        }
+        case 'duelResult':
+          // The shield icon shows up on their chips; just make those chips flash.
+          for (const id of e.torcida) this.flashes.set(id, 0.6);
+          break;
+        case 'shieldUsed':
+          this.app.sfx.play('bump');
+          this.flashes.set(e.player, 0.6);
+          this.popups.push({ text: 'SALVO!', x: this.chipX(e.player) + 2, y: 14, color: PAL.cyan, t: 0 });
           break;
         case 'gameOver':
           this.app.sfx.play('win');
@@ -178,23 +206,33 @@ export class GameScreen implements Screen {
       }
     } else if (clip) {
       this.renderClip(ctx, clip.defId, clip.state, 0);
+      if (snap.spotlight >= 0 && (snap.phase === 'play' || snap.phase === 'preview')) this.spotlightOverlay(ctx, clip.defId, clip.state);
     }
 
-    if (clip && snap.phase !== 'swipe' && snap.phase !== 'over') drawSocialOverlay(ctx, snap, this.t);
+    const amHater = snap.haters.some((h) => h.id === this.localId);
+    // The X1 needs the whole screen (Pong paddles live at the edges).
+    if (clip && snap.phase !== 'swipe' && snap.phase !== 'over' && !amHater && clip.defId !== 'duel') drawSocialOverlay(ctx, snap, this.t);
+    if (clip && snap.phase === 'play' && snap.comments.length) {
+      drawComments(ctx, snap, RENDERERS[clip.defId]?.positions?.(clip.state) ?? [], this.t);
+    }
     if (clip && snap.phase === 'play' && snap.notification > 0) this.notificationPopup(ctx);
 
     if (snap.phase === 'countdown' && clip) {
-      this.titleCard(ctx, clip.defId, clip.name, clip.hint, clip.handle);
+      if (snap.tutorials) this.titleCard(ctx, clip.defId, clip.name, clip.hint, clip.handle);
       const n = Math.max(1, Math.ceil(snap.phaseDuration - snap.phaseTime));
       outlinedText(ctx, `${n}`, SCREEN_W / 2, 150, PAL.yellow, 32);
     } else if (snap.phase === 'preview' && clip) {
       if (clip.isReturn) this.returnCard(ctx);
-      else this.titleCard(ctx, clip.defId, clip.name, clip.hint, clip.handle, clip.speed);
+      else if (snap.tutorials) this.titleCard(ctx, clip.defId, clip.name, clip.hint, clip.handle, clip.speed);
     } else if (snap.phase === 'play' && clip?.isReturn && snap.clipTime < 1.2 && Math.floor(this.t * 6) % 2 === 0) {
       panel(ctx, 4, HUD_H + 26, 64, 12, PAL.red, PAL.white);
       text(ctx, 'REPLAY', 36, HUD_H + 28, PAL.white, 8, 'center');
     }
     if (clip && clip.speed > 1 && (snap.phase === 'preview' || snap.phase === 'play')) this.speedBadge(ctx, clip.speed);
+    if (snap.betActive && clip && clip.defId !== 'poll' && snap.phase !== 'over') {
+      panel(ctx, SCREEN_W - 62, HUD_H + 2, 56, 12, PAL.ink, PAL.pink);
+      text(ctx, 'APOSTA', SCREEN_W - 34, HUD_H + 4, PAL.pink, 8, 'center');
+    }
 
     drawTopHud(ctx, snap, this.localId, this.flashes, this.t);
 
@@ -203,10 +241,8 @@ export class GameScreen implements Screen {
     }
 
     const me = snap.players.find((p) => p.info.id === this.localId);
-    if (me?.eliminated && snap.phase !== 'over') {
-      panel(ctx, 96, SCREEN_H - 14, 192, 12, PAL.ink, PAL.red);
-      text(ctx, 'ELIMINADO - ASSISTINDO', SCREEN_W / 2, SCREEN_H - 12, PAL.red, 8, 'center');
-    }
+    const myHater = snap.haters.find((h) => h.id === this.localId);
+    if (me?.eliminated && myHater && snap.phase !== 'over') drawHaterPanel(ctx, snap, myHater, this.t);
 
     if (this.banners.length && snap.phase !== 'over') {
       const b = this.banners[0];
@@ -222,6 +258,57 @@ export class GameScreen implements Screen {
     }
 
     if (snap.phase === 'over') this.overCard(ctx);
+  }
+
+  private spotCanvas: HTMLCanvasElement | null = null;
+
+  /** HOLOFOTE: everything goes dark except a big light on the most-followed player. */
+  private spotlightOverlay(ctx: CanvasRenderingContext2D, defId: string, state: unknown): void {
+    const pos = RENDERERS[defId]?.positions?.(state);
+    const star = pos?.find((p) => p[0] === this.snap.spotlight);
+    if (!pos || !star) return;
+    if (!this.spotCanvas) {
+      this.spotCanvas = document.createElement('canvas');
+      this.spotCanvas.width = SCREEN_W;
+      this.spotCanvas.height = ARENA_H;
+    }
+    const dk = this.spotCanvas.getContext('2d')!;
+    dk.globalCompositeOperation = 'source-over';
+    dk.clearRect(0, 0, SCREEN_W, ARENA_H);
+    dk.fillStyle = 'rgba(4,2,10,0.9)';
+    dk.fillRect(0, 0, SCREEN_W, ARENA_H);
+    dk.globalCompositeOperation = 'destination-out';
+    const hole = (x: number, y: number, r: number) => {
+      const g = dk.createRadialGradient(x, y, r * 0.5, x, y, r);
+      g.addColorStop(0, 'rgba(0,0,0,1)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      dk.fillStyle = g;
+      dk.beginPath();
+      dk.arc(x, y, r, 0, Math.PI * 2);
+      dk.fill();
+    };
+    hole(star[1], star[2], 48);
+    const me = pos.find((p) => p[0] === this.localId);
+    if (me && me[0] !== star[0]) hole(me[1], me[2], 16);
+    ctx.drawImage(this.spotCanvas, 0, HUD_H);
+    // The beam of light coming from above, and a star over the famous one.
+    const sx = star[1];
+    const sy = star[2] + HUD_H;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = 'rgba(255,230,140,0.1)';
+    ctx.beginPath();
+    ctx.moveTo(sx - 8, HUD_H);
+    ctx.lineTo(sx + 8, HUD_H);
+    ctx.lineTo(sx + 44, sy);
+    ctx.lineTo(sx - 44, sy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    const bob = Math.floor(this.t * 4) % 2;
+    ctx.fillStyle = PAL.yellow;
+    ctx.fillRect(sx - 1, sy - 22 - bob, 3, 7);
+    ctx.fillRect(sx - 3, sy - 20 - bob, 7, 3);
   }
 
   /** Mid-clip notification: a big pop-up right in the middle of the action. */

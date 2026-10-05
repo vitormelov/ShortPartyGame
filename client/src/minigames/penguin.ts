@@ -1,4 +1,4 @@
-import { ARENA_H, ARENA_W } from '@shared/arena';
+﻿import { ARENA_H, ARENA_W } from '@shared/arena';
 import { FALL_TIME, FLOE, SHOVE_COOLDOWN, type Penguin, type PenguinState, type Skater } from '@shared/minigames/penguin/logic';
 import { CHARACTERS, type PlayerId } from '@shared/types';
 import { PAL, sprite } from '../core/draw';
@@ -111,6 +111,10 @@ function drawSkater(ctx: CanvasRenderingContext2D, s: Skater, time: number): voi
 }
 
 export const penguinRenderer: MinigameRenderer = {
+  positions(raw) {
+    return (raw as PenguinState).skaters.filter((s) => s.status === 'alive').map((s) => [s.id, s.x, s.y - 3]);
+  },
+
   render(ctx, raw, time, localId: PlayerId) {
     const st = raw as PenguinState;
     drawWater(ctx, time);

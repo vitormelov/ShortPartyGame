@@ -1,4 +1,4 @@
-import { ARENA_H, ARENA_W } from '@shared/arena';
+﻿import { ARENA_H, ARENA_W } from '@shared/arena';
 import { BALL_R, CENTER, CHARGE_COOLDOWN, FALL_TIME, START_R, type Ball, type BubbleState } from '@shared/minigames/bubble/logic';
 import { CHARACTERS, type PlayerId } from '@shared/types';
 import { PAL, sprite } from '../core/draw';
@@ -118,6 +118,10 @@ function drawBall(ctx: CanvasRenderingContext2D, b: Ball, time: number): void {
 }
 
 export const bubbleRenderer: MinigameRenderer = {
+  positions(raw) {
+    return (raw as BubbleState).balls.filter((b) => b.status === 'alive').map((b) => [b.id, b.x, b.y - 6]);
+  },
+
   render(ctx, raw, time, localId: PlayerId) {
     const st = raw as BubbleState;
     drawSea(ctx, time);

@@ -122,6 +122,10 @@ function drawPlayer(ctx: CanvasRenderingContext2D, p: LPlayer, time: number): vo
 }
 
 export const lanternRenderer: MinigameRenderer = {
+  positions(raw) {
+    return (raw as LanternState).players.filter((p) => p.status === 'alive').map((p) => [p.id, p.x, p.y - 3]);
+  },
+
   render(ctx, raw, time, localId: PlayerId) {
     const st = raw as LanternState;
     drawRoom(ctx);

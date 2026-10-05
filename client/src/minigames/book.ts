@@ -1,4 +1,4 @@
-import { ARENA_H, ARENA_W } from '@shared/arena';
+﻿import { ARENA_H, ARENA_W } from '@shared/arena';
 import { DEATH_ANIM, FIELD, SHOVE_COOLDOWN, SLAM_TIME, TURN_TIME, type BookPlayer, type BookState, type Hole } from '@shared/minigames/book/logic';
 import { CHARACTERS, type PlayerId } from '@shared/types';
 import { PAL, outlinedText, sprite, text } from '../core/draw';
@@ -103,6 +103,10 @@ function drawPlayer(ctx: CanvasRenderingContext2D, p: BookPlayer, time: number):
 }
 
 export const bookRenderer: MinigameRenderer = {
+  positions(raw) {
+    return (raw as BookState).players.filter((p) => p.status === 'alive').map((p) => [p.id, p.x, p.y - 3]);
+  },
+
   render(ctx, raw, time, localId: PlayerId) {
     const st = raw as BookState;
     drawTable(ctx);

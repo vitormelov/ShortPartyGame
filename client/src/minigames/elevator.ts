@@ -1,4 +1,4 @@
-import { ARENA_H, ARENA_W } from '@shared/arena';
+﻿import { ARENA_H, ARENA_W } from '@shared/arena';
 import { DEATH_ANIM, FLOOR_Y, PLAT_H, ROW_GAP, floorOf, type EPlayer, type ElevatorState, type Platform } from '@shared/minigames/elevator/logic';
 import { CHARACTERS, type PlayerId } from '@shared/types';
 import { PAL, sprite, text } from '../core/draw';
@@ -125,6 +125,11 @@ function drawPlayer(ctx: CanvasRenderingContext2D, p: EPlayer, camY: number, tim
 }
 
 export const elevatorRenderer: MinigameRenderer = {
+  positions(raw) {
+    const st = raw as ElevatorState;
+    return st.players.filter((p) => p.status === 'alive').map((p) => [p.id, p.x, p.y - st.camY - 5]);
+  },
+
   render(ctx, raw, time, localId: PlayerId) {
     const st = raw as ElevatorState;
     drawShaft(ctx, st.camY);

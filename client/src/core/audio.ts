@@ -53,7 +53,23 @@ export class Sfx {
   }
 
   play(name: string): void {
+    if (name.startsWith('mel')) {
+      // Melody step on a major pentatonic scale (Trend da Dancinha).
+      const steps = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21];
+      const k = steps[Math.max(0, Math.min(steps.length - 1, Number(name.slice(3)) || 0))];
+      this.tone(523 * Math.pow(2, k / 12), 0.12, 'square', 0.12);
+      return;
+    }
     switch (name) {
+      case 'kick':
+        this.tone(150, 0.12, 'sine', 0.45, 45);
+        break;
+      case 'hat':
+        this.noise(0.04, 0.12, 9000, 7000, 'highpass');
+        break;
+      case 'blip':
+        this.tone(880, 0.06, 'square', 0.2);
+        break;
       case 'swipe':
         this.noise(0.25, 0.5, 600, 6000, 'bandpass');
         break;
@@ -100,6 +116,16 @@ export class Sfx {
       case 'splash':
         this.noise(0.5, 0.5, 1500, 200, 'lowpass');
         this.tone(500, 0.3, 'sine', 0.2, 120);
+        break;
+      case 'whoosh':
+        this.noise(0.18, 0.25, 600, 2400, 'bandpass');
+        break;
+      case 'cannon':
+        this.noise(0.18, 0.45, 1800, 200, 'lowpass');
+        this.tone(120, 0.12, 'square', 0.2, 60);
+        break;
+      case 'ricochet':
+        this.tone(2400, 0.08, 'triangle', 0.15, 1200);
         break;
       case 'penguins':
         [880, 988, 880].forEach((f, i) => this.tone(f, 0.06, 'square', 0.12, undefined, i * 0.07));
