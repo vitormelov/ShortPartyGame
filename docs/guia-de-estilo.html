@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guia de Estilo ShortParty</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  /* Layout: a dark "feed" page; each section is a post you scroll past, pixel art on canvases scaled with nearest-neighbor. */
+  :root {
+    --roxo-feed: #1b0b3a;
+    --tinta: #0a0614;
+    --painel: #24163f;
+    --borda: #3a2766;
+    --rosa: #ff2e88;
+    --acido: #c6ff3d;
+    --ciano: #3ee8ff;
+    --creme: #fff4e0;
+    --nevoa: #a89cc8;
+    --font-pixel: "Press Start 2P", "Courier New", monospace;
+    --font-body: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--tinta);
+    color: var(--creme);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.55;
+    margin: 0;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding-inline: 20px; padding-block: 0 80px; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+
+  h1, h2, h3 { text-wrap: balance; margin: 0; }
+  h2 {
+    font-family: var(--font-pixel);
+    font-size: clamp(16px, 2.6vw, 22px);
+    line-height: 1.5;
+    color: var(--creme);
+  }
+  .eyebrow {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--rosa);
+    text-transform: uppercase;
+  }
+  p { margin: 0; max-width: 64ch; }
+  .lede { color: var(--nevoa); font-size: 17px; }
+
+  section { padding-block: 64px 0; display: grid; gap: 24px; }
+  .section-head { display: grid; gap: 10px; }
+
+  /* Hero */
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    gap: 32px;
+    align-items: center;
+    padding-block: 56px 24px;
+  }
+  .logo {
+    font-family: var(--font-pixel);
+    font-size: clamp(30px, 6.4vw, 62px);
+    line-height: 1.15;
+    color: var(--creme);
+    text-shadow: 3px 0 0 var(--rosa), -3px 0 0 var(--ciano);
+    letter-spacing: -0.02em;
+  }
+  .logo span { color: var(--acido); }
+  .hero p { margin-top: 18px; font-size: 18px; color: var(--nevoa); }
+  .hero p strong { color: var(--creme); font-weight: 600; }
+  .algo-stage { display: grid; justify-items: center; gap: 14px; }
+  .algo-stage canvas { width: min(260px, 70vw); height: auto; aspect-ratio: 56 / 44; }
+  .bubble {
+    font-family: var(--font-pixel);
+    font-size: 11px;
+    line-height: 1.7;
+    background: var(--creme);
+    color: var(--tinta);
+    padding: 12px 14px;
+    position: relative;
+    max-width: 300px;
+    min-height: 3.6em;
+    text-align: center;
+  }
+  .bubble::before {
+    content: ""; position: absolute; top: -8px; left: 50%; margin-left: -8px;
+    border: 8px solid transparent; border-top: 0; border-bottom-color: var(--creme);
+  }
+
+  /* Palette */
+  .swatches { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .swatch { background: var(--painel); border: 1px solid var(--borda); display: grid; }
+  .swatch .chip { height: 84px; }
+  .swatch .meta { padding: 12px 14px 14px; display: grid; gap: 4px; }
+  .swatch .name { font-weight: 800; }
+  .swatch code { font-family: var(--font-mono); font-size: 13px; color: var(--nevoa); }
+  .swatch .use { font-size: 14px; color: var(--nevoa); line-height: 1.4; }
+
+  /* Cast */
+  .cast { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+  .card {
+    background: var(--painel);
+    border: 1px solid var(--borda);
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    min-width: 0;
+  }
+  .card .stage {
+    display: grid; place-items: center;
+    padding-block: 16px 8px;
+    background:
+      linear-gradient(to bottom, transparent 70%, rgba(0,0,0,0.25) 70%),
+      var(--roxo-feed);
+    border-bottom: 3px solid var(--sig);
+  }
+  .card canvas { width: 136px; height: 136px; }
+  .card .id { padding: 12px 14px 4px; display: grid; gap: 2px; }
+  .card h3 { font-family: var(--font-pixel); font-size: 11px; line-height: 1.6; color: var(--sig); }
+  .card .handle { font-family: var(--font-mono); font-size: 13px; color: var(--nevoa); }
+  .card dl { margin: 0; padding: 8px 14px 16px; display: grid; gap: 8px; font-size: 14px; line-height: 1.4; }
+  .card dt { font-family: var(--font-pixel); font-size: 8px; color: var(--nevoa); letter-spacing: 0.06em; margin-bottom: 3px; }
+  .card dd { margin: 0; }
+
+  /* Algoritmo lines */
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .lines li {
+    background: var(--painel);
+    border-left: 3px solid var(--rosa);
+    padding: 10px 14px;
+    display: grid; gap: 2px;
+  }
+  .lines .when { font-family: var(--font-pixel); font-size: 8px; color: var(--nevoa); letter-spacing: 0.06em; }
+  .lines .say { font-weight: 600; }
+
+  /* Mockup */
+  .phone {
+    background: #000;
+    border: 2px solid var(--borda);
+    padding: 10px;
+    box-shadow: 0 0 0 6px var(--painel);
+  }
+  .phone canvas { width: 100%; height: auto; aspect-ratio: 384 / 216; }
+  .callouts { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px 20px; margin: 0; padding: 0; list-style: none; }
+  .callouts li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; font-size: 15px; line-height: 1.45; }
+  .callouts b { font-family: var(--font-pixel); font-size: 9px; color: var(--tinta); background: var(--acido); padding: 4px 6px; margin-top: 2px; }
+
+  /* Voice table */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--borda); }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 15px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--borda); vertical-align: top; }
+  th { font-family: var(--font-pixel); font-size: 9px; letter-spacing: 0.06em; color: var(--nevoa); font-weight: 400; background: var(--painel); }
+  td.death { font-family: var(--font-pixel); font-size: 10px; color: var(--rosa); line-height: 1.6; white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+
+  .awards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .award { background: var(--painel); border: 1px solid var(--borda); padding: 14px; display: grid; gap: 6px; }
+  .award .t { font-family: var(--font-pixel); font-size: 10px; color: var(--acido); line-height: 1.6; }
+  .award .d { font-size: 14px; color: var(--nevoa); line-height: 1.4; }
+
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .rule { border-top: 3px solid var(--ciano); background: var(--painel); padding: 14px; display: grid; gap: 6px; }
+  .rule h3 { font-size: 17px; font-weight: 800; }
+  .rule p { font-size: 14px; color: var(--nevoa); line-height: 1.45; }
+  .rule code { font-family: var(--font-mono); font-size: 12px; color: var(--ciano); }
+
+  .steps { counter-reset: s; list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .steps li {
+    counter-increment: s;
+    display: grid; grid-template-columns: 44px 1fr; gap: 14px; align-items: start;
+    background: var(--painel); border: 1px solid var(--borda); padding: 14px;
+  }
+  .steps li::before {
+    content: counter(s);
+    font-family: var(--font-pixel); font-size: 16px; color: var(--tinta);
+    background: var(--rosa); width: 36px; height: 36px; display: grid; place-items: center;
+  }
+  .steps strong { display: block; font-size: 16px; }
+  .steps span { color: var(--nevoa); font-size: 14px; }
+
+  @media (max-width: 860px) {
+    .cast { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .hero, .two { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 420px) {
+    .card canvas { width: 102px; height: 102px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .logo { text-shadow: 2px 0 0 var(--rosa), -2px 0 0 var(--ciano); }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="hero">
+    <div>
+      <div class="eyebrow">Guia de estilo · proposta v1</div>
+      <h1 class="logo">SHORT<span>PARTY</span></h1>
+      <p><strong>O party game que te prende no feed.</strong> Hoje o jogo funciona, mas a tela podia ser de qualquer jogo. Esta proposta dá a ele um elenco, um apresentador e a cara de um app de vídeos curtos.</p>
+    </div>
+    <div class="algo-stage">
+      <canvas id="algo" width="56" height="44" aria-label="O Algoritmo, um monitor com um olho que segue o cursor"></canvas>
+      <div class="bubble" id="algo-say" aria-live="polite">ENTREGOU PRA 3 PESSOAS.</div>
+    </div>
+  </header>
+
+  <section>
+    <div class="section-head">
+      <div class="eyebrow">Paleta</div>
+      <h2>Três cores de marca</h2>
+      <p class="lede">Hoje cada minigame tem uma cor solta. A proposta é que todos usem estas cores como base. As cores de cada personagem ficam à parte, só para identificar quem é quem.</p>
+    </div>
+    <div class="swatches">
+      <div class="swatch"><div class="chip" style="background:#ff2e88"></div><div class="meta"><span class="name">Rosa Viral</span><code>#FF2E88</code><span class="use">Destaques, curtidas, o Algoritmo, perigo.</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#c6ff3d"></div><div class="meta"><span class="name">Verde Like</span><code>#C6FF3D</code><span class="use">Acerto, vida extra, VIRALIZOU, botões de ação.</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#1b0b3a"></div><div class="meta"><span class="name">Roxo Feed</span><code>#1B0B3A</code><span class="use">Fundo de tudo. Nenhum minigame usa preto puro.</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#3ee8ff"></div><div class="meta"><span class="name">Ciano Notificação</span><code>#3EE8FF</code><span class="use">Apoio: notificações, retornos, interface do app.</span></div></div>
+      <div class="swatch"><div class="chip" style="background:#fff4e0"></div><div class="meta"><span class="name">Creme Tela</span><code>#FFF4E0</code><span class="use">Texto e balões de fala. Nunca branco puro.</span></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="eyebrow">Elenco</div>
+      <h2>Oito influencers, oito silhuetas</h2>
+      <p class="lede">Cada um tem uma silhueta que dá para reconhecer mesmo pequena, um objeto marca registrada e um jeito próprio de ganhar e de morrer. No jogo eles aparecem em uma versão menor, com uns 16 pixels de altura.</p>
+    </div>
+    <div class="cast" id="cast"></div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="eyebrow">Apresentador</div>
+      <h2>O Algoritmo</h2>
+      <p class="lede">Um monitor com um olho só, que observa tudo e decide quem viraliza. Ele aparece nas trocas de clipe, provoca quem flopa e anuncia os eventos. É a voz do jogo e a cara da logo. Passe o mouse ou o dedo na página: o olho segue você.</p>
+    </div>
+    <div class="two">
+      <ul class="lines">
+        <li><span class="when">PRIMEIRO CLIPE</span><span class="say">"Vamos ver se você prende a atenção."</span></li>
+        <li><span class="when">RETORNO CRUEL</span><span class="say">"Lembra desse? Eu lembro."</span></li>
+        <li><span class="when">FLOP</span><span class="say">"Entregou pra 3 pessoas."</span></li>
+        <li><span class="when">ACELERAR</span><span class="say">"Ninguém aguenta ver em 1x."</span></li>
+      </ul>
+      <ul class="lines">
+        <li><span class="when">X1</span><span class="say">"Dois entram. Um sai com engajamento."</span></li>
+        <li><span class="when">ANÚNCIO</span><span class="say">"Pausa para os nossos patrocinadores."</span></li>
+        <li><span class="when">ELIMINADO</span><span class="say">"Conta suspensa. Agora você é só comentário."</span></li>
+        <li><span class="when">VENCEDOR</span><span class="say">"Parabéns. Você é o conteúdo agora."</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="eyebrow">A tela</div>
+      <h2>Cada clipe é um post</h2>
+      <p class="lede">O app falso deixa de ser um detalhe no canto e vira a moldura de tudo. Mock na resolução real do jogo (384×216), com o Filtro Certo rodando por baixo.</p>
+    </div>
+    <div class="phone"><canvas id="mock" width="384" height="216" aria-label="Mock da tela de jogo com interface de app de vídeos curtos"></canvas></div>
+    <ul class="callouts">
+      <li><b>1</b><span>Barra de status real: a hora e a bateria, que vai acabando ao longo da partida.</span></li>
+      <li><b>2</b><span>O Algoritmo entra pelo topo com uma fala curta sempre que algo acontece.</span></li>
+      <li><b>3</b><span>Curtidas, comentários e compartilhamentos sobem quando alguém morre.</span></li>
+      <li><b>4</b><span>Comentários falsos sobem pela tela reagindo à partida.</span></li>
+      <li><b>5</b><span>Legenda com hashtags do minigame e o nome do "som em alta" rolando.</span></li>
+      <li><b>6</b><span>Barra de progresso do clipe embaixo, igual à dos apps de vídeo.</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="eyebrow">Tom de voz</div>
+      <h2>Mortes com nome e sobrenome</h2>
+      <p class="lede">Cada minigame ganha a sua frase de morte. Ela aparece em cima de quem morreu e no feed de eventos.</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Minigame</th><th>Frase de morte</th><th>Quando aparece</th></tr></thead>
+        <tbody>
+          <tr><td>Kart Rush</td><td class="death">SAIU DA TRETA</td><td>Caiu da pista</td></tr>
+          <tr><td>Cancelamento</td><td class="death">FOI CANCELADO</td><td>Empurrado pelos pinguins</td></tr>
+          <tr><td>Flame War</td><td class="death">LEVOU RATIO</td><td>Tomou o segundo tiro</td></tr>
+          <tr><td>Lanterna Feed</td><td class="death">TOMOU SHADOWBAN</td><td>Pego no escuro</td></tr>
+          <tr><td>Termos de Uso</td><td class="death">ACEITOU SEM LER</td><td>Esmagado pela página</td></tr>
+          <tr><td>Trend da Dancinha</td><td class="death">CRINGE</td><td>Barra de cringe cheia</td></tr>
+          <tr><td>Filtro Certo</td><td class="death">FILTRO ERRADO</td><td>Afundou com a plataforma</td></tr>
+          <tr><td>Anúncio</td><td class="death">CAIU NO GOLPE</td><td>Não pulou o anúncio</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="awards">
+      <div class="award"><span class="t">MAIS BLOQUEADO</span><span class="d">Quem mais empurrou os outros para a morte.</span></div>
+      <div class="award"><span class="t">REI DO FLOP</span><span class="d">Mais mortes logo depois de um retorno.</span></div>
+      <div class="award"><span class="t">MORREU NO STORY</span><span class="d">Primeiro eliminado da partida.</span></div>
+      <div class="award"><span class="t">HATER DO ANO</span><span class="d">Mais atrapalhou os vivos depois de eliminado.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="eyebrow">Peso e som</div>
+      <h2>O que faz cada morte doer</h2>
+    </div>
+    <div class="rules">
+      <div class="rule"><h3>Congela na morte</h3><p>O jogo para por 3 quadros quando alguém morre. Quase invisível, mas dá impacto. <code>hitstop = 0.05s</code></p></div>
+      <div class="rule"><h3>Tremida curta</h3><p>A tela treme 2 px nas explosões e no gol do Pong. Nunca mais que isso, para não cansar.</p></div>
+      <div class="rule"><h3>Estica e amassa</h3><p>Personagens achatam ao pousar e esticam ao pular. Uns 20% bastam.</p></div>
+      <div class="rule"><h3>Jingle de 4 notas</h3><p>Uma assinatura musical que toca na tela de título, no swipe e na vitória, em variações.</p></div>
+      <div class="rule"><h3>Sons de app</h3><p>O "plim" de notificação, o pop de curtida e o deslizar do swipe como base de toda a interface.</p></div>
+      <div class="rule"><h3>Uma voz por personagem</h3><p>Bipes com timbre e altura próprios, estilo Animal Crossing, quando eles "falam".</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div class="eyebrow">Ordem de trabalho</div>
+      <h2>Como eu faria</h2>
+    </div>
+    <ol class="steps">
+      <li><div><strong>Os 8 personagens</strong><span>Sprites novos em todos os minigames, com pose de vitória e de derrota na tela de seleção e na de resultado.</span></div></li>
+      <li><div><strong>O Algoritmo</strong><span>Na tela de título, nas trocas de clipe e nos eventos, com as falas acima.</span></div></li>
+      <li><div><strong>A moldura de app</strong><span>Barra de status, botões que reagem, comentários subindo, legenda e barra de progresso.</span></div></li>
+      <li><div><strong>Paleta nos minigames</strong><span>Revisar fundos e cores de cada minigame para usar o Roxo Feed e as cores de marca.</span></div></li>
+      <li><div><strong>Peso e som</strong><span>Congelar na morte, tremida, estica e amassa, jingle e sons de app.</span></div></li>
+    </ol>
+  </section>
+</div>
+
+<script>
+(() => {
+  const INK = '#0a0614';
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const R = (c, x, y, w, h, col) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
+  const O = (c, x, y, w, h, col) => { R(c, x - 1, y - 1, w + 2, h + 2, INK); R(c, x, y, w, h, col); };
+
+  /** Shared chibi body on a 24x30 grid: legs, body, arms, big head, face. */
+  function base(c, o) {
+    O(c, 8, 23, 3, 4, o.pants); O(c, 13, 23, 3, 4, o.pants);
+    O(c, 7, 27, 4, 2, o.shoes); O(c, 13, 27, 4, 2, o.shoes);
+    if (o.wide) O(c, 6, 15, 12, 9, o.shirt); else O(c, 7, 15, 10, 9, o.shirt);
+    if (!o.noArms) {
+      const ac = o.arms || o.shirt;
+      const ax = o.wide ? 3 : 4;
+      O(c, ax, 16, 3, 7, ac); O(c, 21 - ax, 16, 3, 7, ac);
+      R(c, ax, 21, 3, 2, o.skin); R(c, 21 - ax, 21, 3, 2, o.skin);
+    }
+    O(c, 6, 4, 12, 11, o.skin);
+    if (!o.noFace) {
+      R(c, 9, 9, 1, 2, INK); R(c, 14, 9, 1, 2, INK);
+      R(c, 11, 12, 2, 1, INK);
+      R(c, 7, 11, 1, 1, '#ff9aa8'); R(c, 16, 11, 1, 1, '#ff9aa8');
+    }
+  }
+
+  const CAST = [
+    {
+      name: 'COACH', handle: '@coach.mindset', sig: '#ff5a5a',
+      prop: 'Headset de palestra e dente que brilha',
+      win: '"É sobre MINDSET."', lose: 'Morre gritando "SAI DA ZONA DE CONFORTO!"',
+      draw(c, t) {
+        base(c, { skin: '#f2c49a', shirt: '#24305e', pants: '#1a2040', shoes: '#14141e' });
+        R(c, 10, 15, 4, 2, '#ffffff'); R(c, 11, 16, 2, 6, '#e83b3b'); R(c, 11, 16, 2, 1, '#a81a2a');
+        O(c, 6, 3, 12, 3, '#1a1a2a'); R(c, 6, 6, 1, 2, '#1a1a2a'); R(c, 17, 6, 1, 2, '#1a1a2a'); R(c, 9, 3, 4, 1, '#4a4a6a');
+        R(c, 8, 8, 3, 1, INK); R(c, 13, 8, 3, 1, INK);
+        R(c, 10, 12, 4, 1, INK); R(c, 11, 12, 2, 1, '#ffffff');
+        R(c, 5, 5, 1, 7, '#9a9ab0'); R(c, 5, 12, 4, 1, '#9a9ab0'); R(c, 9, 12, 1, 1, '#e83b3b');
+        if (Math.floor(t * 3) % 3 === 0) { R(c, 15, 12, 3, 1, '#ffffff'); R(c, 16, 11, 1, 3, '#ffffff'); }
+      },
+    },
+    {
+      name: 'BLOGUEIRINHA', handle: '@blogueirinha.oficial', sig: '#ff7ac8',
+      prop: 'Ring light na cabeça, celular sempre na mão',
+      win: 'Tira selfie com o troféu', lose: 'Morre fazendo story: "gente, olha isso"',
+      draw(c, t) {
+        const glow = 0.55 + 0.45 * Math.sin(t * 4);
+        for (let a = 0; a < 72; a++) {
+          const g = (a / 72) * Math.PI * 2;
+          R(c, Math.round(12 + Math.cos(g) * 10.5), Math.round(9.5 + Math.sin(g) * 10.5), 1, 1, `rgba(255,246,200,${glow.toFixed(2)})`);
+          R(c, Math.round(12 + Math.cos(g) * 9.5), Math.round(9.5 + Math.sin(g) * 9.5), 1, 1, `rgba(255,255,255,${(glow * 0.6).toFixed(2)})`);
+        }
+        O(c, 5, 5, 14, 14, '#ff7ac8');
+        base(c, { skin: '#ffd8b8', shirt: '#ff2e88', pants: '#fff4e0', shoes: '#ff2e88' });
+        O(c, 6, 3, 12, 3, '#ff7ac8'); R(c, 6, 6, 2, 3, '#ff7ac8'); R(c, 16, 6, 2, 3, '#ff7ac8'); R(c, 9, 3, 3, 1, '#ffc6ea');
+        R(c, 8, 8, 2, 1, INK); R(c, 14, 8, 2, 1, INK);
+        R(c, 11, 12, 2, 1, '#d81a5a');
+        O(c, 19, 12, 4, 6, '#1a1a2a'); R(c, 20, 13, 2, 4, Math.floor(t * 2) % 2 ? '#3ee8ff' : '#ff5ac8');
+      },
+    },
+    {
+      name: 'TIOZÃO DO ZAP', handle: '@tiozao.do.zap', sig: '#5cf26a',
+      prop: 'Óculos, polo e a florzinha do bom dia',
+      win: 'Manda "kkkkkkk" com 3 figurinhas', lose: 'Morre encaminhando corrente',
+      draw(c, t) {
+        base(c, { skin: '#e8b890', shirt: '#3bc84a', pants: '#c8a46a', shoes: '#6a4a2a', wide: true });
+        R(c, 9, 5, 3, 1, '#fff0d8');
+        R(c, 6, 7, 1, 4, '#c8c8d0'); R(c, 17, 7, 1, 4, '#c8c8d0');
+        O(c, 8, 8, 3, 3, '#cfe8ff'); O(c, 13, 8, 3, 3, '#cfe8ff'); R(c, 11, 9, 2, 1, INK);
+        R(c, 9, 9, 1, 1, INK); R(c, 14, 9, 1, 1, INK);
+        R(c, 9, 12, 6, 1, '#8a8a90'); R(c, 11, 13, 2, 1, INK);
+        R(c, 9, 15, 6, 1, '#ffffff'); R(c, 11, 16, 2, 1, '#2a9a3a'); R(c, 11, 18, 2, 1, '#2a9a3a');
+        const sw = Math.floor(t * 2) % 2;
+        R(c, 4, 16, 1, 5, '#2a8a2a');
+        R(c, 3 + sw, 13, 3, 3, '#ffd23e'); R(c, 4 + sw, 14, 1, 1, '#ff7a1e');
+      },
+    },
+    {
+      name: 'GAMER', handle: '@gamer.pro.br', sig: '#3ee8ff',
+      prop: 'Fone RGB que muda de cor sem parar',
+      win: '"GG EZ"', lose: 'Morre culpando o lag',
+      draw(c, t) {
+        const rgb = `hsl(${Math.floor(t * 140) % 360},95%,60%)`;
+        base(c, { skin: '#d8a07a', shirt: '#22223a', pants: '#3a3a5a', shoes: '#f4f4f8' });
+        O(c, 6, 3, 12, 3, '#5a3a1a'); R(c, 7, 6, 2, 1, '#5a3a1a'); R(c, 14, 6, 3, 1, '#5a3a1a'); R(c, 10, 2, 2, 1, '#5a3a1a');
+        O(c, 6, 1, 12, 1, rgb); O(c, 4, 8, 2, 4, rgb); O(c, 18, 8, 2, 4, rgb);
+        R(c, 9, 11, 1, 1, '#9a6a9a'); R(c, 14, 11, 1, 1, '#9a6a9a');
+        R(c, 10, 12, 4, 1, INK);
+        R(c, 10, 16, 1, 3, '#ffffff'); R(c, 13, 16, 1, 3, '#ffffff');
+        R(c, 11, 19, 2, 2, rgb);
+      },
+    },
+    {
+      name: 'CRIPTO BRO', handle: '@cripto.bro', sig: '#ffd23e',
+      prop: 'Óculos escuros, corrente de ouro e um foguete',
+      win: '"TO THE MOON"', lose: 'Morre vendo o gráfico despencar',
+      draw(c, t) {
+        base(c, { skin: '#f0c8a0', shirt: '#f4f4f8', pants: '#2a3a6a', shoes: '#ffd23e' });
+        O(c, 6, 3, 12, 3, '#e8b830'); O(c, 8, 1, 8, 2, '#e8b830'); R(c, 9, 1, 3, 1, '#fff0a0');
+        R(c, 7, 8, 10, 3, INK); R(c, 8, 8, 2, 1, '#6a6aa0'); R(c, 13, 8, 2, 1, '#6a6aa0');
+        R(c, 11, 12, 3, 1, INK); R(c, 13, 11, 1, 1, INK);
+        R(c, 9, 15, 1, 2, '#ffd23e'); R(c, 10, 17, 1, 1, '#ffd23e'); R(c, 11, 18, 2, 1, '#ffd23e'); R(c, 13, 17, 1, 1, '#ffd23e'); R(c, 14, 15, 1, 2, '#ffd23e');
+        R(c, 11, 19, 2, 2, '#ffd23e');
+        const y = Math.round(22 - ((t * 14) % 26));
+        R(c, 22, y, 2, 1, '#ff2e88'); R(c, 22, y + 1, 2, 3, '#ffffff'); R(c, 21, y + 3, 1, 1, '#ff2e88'); R(c, 24, y + 3, 1, 1, '#ff2e88');
+        R(c, 22, y + 4, 2, 1, Math.floor(t * 12) % 2 ? '#ff7a1e' : '#ffd23e');
+      },
+    },
+    {
+      name: 'FITNESS', handle: '@fitness.monstro', sig: '#ff8a1e',
+      prop: 'Regata, faixa na testa e a coqueteleira',
+      win: 'Flexiona os dois braços', lose: 'Morre contando "só mais uma!"',
+      draw(c, t) {
+        const skin = '#c88a5a';
+        const flex = Math.floor(t * 1.5) % 2 === 1;
+        base(c, { skin, shirt: '#ff8a1e', pants: '#22223a', shoes: '#f4f4f8', noArms: true });
+        if (flex) {
+          O(c, 2, 10, 4, 7, skin); O(c, 1, 9, 3, 3, skin); O(c, 18, 10, 4, 7, skin); O(c, 20, 9, 3, 3, skin);
+        } else {
+          O(c, 3, 16, 4, 7, skin); O(c, 17, 16, 4, 7, skin);
+          O(c, 19, 19, 3, 5, '#3ee8ff'); R(c, 19, 18, 3, 1, '#ffffff');
+        }
+        R(c, 7, 15, 2, 2, skin); R(c, 15, 15, 2, 2, skin);
+        O(c, 6, 3, 12, 3, '#3a2a1a'); R(c, 6, 6, 12, 2, '#e83b3b');
+        R(c, 8, 8, 3, 1, INK); R(c, 13, 8, 3, 1, INK);
+        R(c, 10, 12, 4, 1, INK);
+      },
+    },
+    {
+      name: 'ASMR', handle: '@asmr.sussurros', sig: '#b89aff',
+      prop: 'Microfone de espuma gigante e fone de gatinho',
+      win: 'Sussurra "obrigada..."', lose: 'Morre tão quieto que ninguém percebe',
+      draw(c, t) {
+        const skin = '#ffe0d0';
+        base(c, { skin, shirt: '#b89aff', pants: '#8a6ad8', shoes: '#f4f4f8' });
+        R(c, 9, 9, 1, 2, skin); R(c, 14, 9, 1, 2, skin);
+        R(c, 8, 10, 2, 1, INK); R(c, 14, 10, 2, 1, INK);
+        O(c, 6, 3, 12, 3, '#fff0f8'); R(c, 6, 6, 2, 5, '#fff0f8'); R(c, 16, 6, 2, 5, '#fff0f8');
+        O(c, 6, 1, 2, 2, '#ffb0e0'); O(c, 16, 1, 2, 2, '#ffb0e0'); R(c, 8, 2, 8, 1, '#ffb0e0');
+        O(c, 4, 8, 2, 3, '#ffb0e0'); O(c, 18, 8, 2, 3, '#ffb0e0');
+        R(c, 19, 16, 1, 7, '#9a9ab0');
+        O(c, 17, 10, 5, 6, '#4a4a5a'); R(c, 18, 11, 1, 1, '#6a6a7a'); R(c, 20, 13, 1, 1, '#6a6a7a'); R(c, 18, 14, 1, 1, '#6a6a7a');
+        for (let k = 0; k < 3; k++) {
+          const ph = (t * 0.9 + k / 3) % 1;
+          const r = 3 + ph * 5;
+          for (let a = -3; a <= 3; a++) {
+            const g = a * 0.22;
+            c.globalAlpha = 1 - ph;
+            R(c, Math.round(22 + Math.cos(g) * r), Math.round(13 + Math.sin(g) * r), 1, 1, '#ffb0e0');
+          }
+        }
+        c.globalAlpha = 1;
+      },
+    },
+    {
+      name: 'UNBOXING KID', handle: '@unboxing.kids', sig: '#ff9a3e',
+      prop: 'Uma caixa de papelão na cabeça',
+      win: '"AAAAAAAAAA!" (de alegria)', lose: '"AAAAAAAAAA!" (de tristeza)',
+      draw(c, t) {
+        base(c, { skin: '#f2c49a', shirt: '#e83b3b', pants: '#3b6ee8', shoes: '#f4f4f8', noFace: true });
+        const yell = Math.sin(t * 2.2) > 0.3;
+        const j = yell && Math.floor(t * 14) % 2 ? 1 : 0;
+        O(c, 4 + j, 1, 16, 14, '#c8a46a');
+        R(c, 4 + j, 1, 16, 1, '#e0c080'); R(c, 11 + j, 1, 2, 14, '#a8844a');
+        R(c, 7 + j, 6, 3, 3, INK); R(c, 14 + j, 6, 3, 3, INK);
+        R(c, 8 + j, 7, 1, 1, '#ffffff'); R(c, 15 + j, 7, 1, 1, '#ffffff');
+        if (yell) R(c, 9 + j, 10, 6, 3, INK); else R(c, 10 + j, 11, 4, 1, INK);
+      },
+    },
+  ];
+
+  // Cast cards.
+  const castEl = document.getElementById('cast');
+  const sprites = [];
+  CAST.forEach((ch) => {
+    const card = document.createElement('article');
+    card.className = 'card';
+    card.style.setProperty('--sig', ch.sig);
+    card.innerHTML = `
+      <div class="stage"><canvas width="34" height="34" aria-label="${ch.name}"></canvas></div>
+      <div class="id"><h3>${ch.name}</h3><span class="handle">${ch.handle}</span></div>
+      <dl>
+        <div><dt>MARCA REGISTRADA</dt><dd>${ch.prop}</dd></div>
+        <div><dt>VITÓRIA</dt><dd>${ch.win}</dd></div>
+        <div><dt>DERROTA</dt><dd>${ch.lose}</dd></div>
+      </dl>`;
+    castEl.appendChild(card);
+    sprites.push({ ch, ctx: card.querySelector('canvas').getContext('2d'), seed: Math.random() * 10 });
+  });
+
+  function drawSprite(c, ch, t, ox, oy) {
+    c.save();
+    c.translate(ox, oy + (Math.floor(t * 2) % 2));
+    ch.draw(c, t);
+    c.restore();
+  }
+
+  // The Algoritmo: a monitor with one eye that follows the pointer.
+  const algo = document.getElementById('algo').getContext('2d');
+  const algoCanvas = algo.canvas;
+  let look = { x: 0, y: 0 };
+  window.addEventListener('pointermove', (e) => {
+    const r = algoCanvas.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width / 2);
+    const dy = e.clientY - (r.top + r.height / 2);
+    const d = Math.hypot(dx, dy) || 1;
+    const k = Math.min(1, d / 300);
+    look = { x: (dx / d) * k, y: (dy / d) * k };
+  });
+  function drawAlgo(t) {
+    const c = algo;
+    c.clearRect(0, 0, 56, 44);
+    const bob = reduce ? 0 : Math.round(Math.sin(t * 2) * 1.5);
+    c.save();
+    c.translate(0, bob + 2);
+    // Antenna.
+    R(c, 27, 1, 2, 5, '#c6ff3d');
+    R(c, 25, 0, 6, 2, Math.floor(t * 2) % 2 ? '#c6ff3d' : '#8ab020');
+    // Monitor.
+    R(c, 5, 6, 46, 32, '#ff2e88');
+    R(c, 4, 7, 48, 30, '#ff2e88');
+    R(c, 7, 8, 42, 28, '#1b0b3a');
+    // Scanlines.
+    for (let y = 9; y < 36; y += 3) R(c, 7, y, 42, 1, '#24104a');
+    // Eye (blinks every few seconds).
+    const blink = !reduce && (t % 3.4) < 0.12;
+    const cx = 28, cy = 22;
+    if (blink) {
+      R(c, 14, cy, 28, 2, '#fff4e0');
+    } else {
+      R(c, 16, 13, 24, 18, '#fff4e0');
+      R(c, 14, 15, 28, 14, '#fff4e0');
+      const ix = Math.round(cx + look.x * 7);
+      const iy = Math.round(cy + look.y * 4);
+      R(c, ix - 5, iy - 5, 10, 10, '#ff2e88');
+      R(c, ix - 6, iy - 4, 12, 8, '#ff2e88');
+      R(c, ix - 2, iy - 2, 4, 4, INK);
+      R(c, ix - 4, iy - 4, 2, 2, '#ffffff');
+    }
+    // Stand.
+    R(c, 23, 38, 10, 2, '#ff2e88');
+    c.restore();
+  }
+  const SAYS = [
+    'ENTREGOU PRA 3 PESSOAS.',
+    'VAMOS VER SE VOCÊ PRENDE A ATENÇÃO.',
+    'LEMBRA DESSE? EU LEMBRO.',
+    'NINGUÉM AGUENTA VER EM 1X.',
+    'VOCÊ É O CONTEÚDO AGORA.',
+  ];
+  const sayEl = document.getElementById('algo-say');
+  let sayIdx = 0;
+  if (!reduce) setInterval(() => { sayIdx = (sayIdx + 1) % SAYS.length; sayEl.textContent = SAYS[sayIdx]; }, 3200);
+
+  // Mockup of a clip with the app frame.
+  const mock = document.getElementById('mock').getContext('2d');
+  const W = 384, H = 216;
+  const TILE_COLS = ['#ff2e88', '#c6ff3d', '#3ee8ff', '#b89aff'];
+  const tiles = Array.from({ length: 40 }, (_, i) => (i * 7 + (i % 3)) % 4);
+  const COMMENTS = ['KKKKKK O AZUL', 'PRIMEIRO', 'ISSO É FAKE', 'VOLTA O CLIPE', 'O TIOZÃO KKKK', 'CRINGE DEMAIS', 'QUAL O NOME DA MÚSICA'];
+  const font = (px) => `${px}px "Press Start 2P", monospace`;
+
+  function heartIcon(c, x, y, col) {
+    R(c, x + 1, y, 3, 1, col); R(c, x + 6, y, 3, 1, col);
+    R(c, x, y + 1, 10, 3, col); R(c, x + 1, y + 4, 8, 1, col); R(c, x + 2, y + 5, 6, 1, col); R(c, x + 3, y + 6, 4, 1, col); R(c, x + 4, y + 7, 2, 1, col);
+  }
+
+  function drawMock(t) {
+    const c = mock;
+    c.imageSmoothingEnabled = false;
+    // Game underneath: the Filtro Certo grid on Roxo Feed water.
+    R(c, 0, 0, W, H, '#1b0b3a');
+    for (let y = 0; y < H; y += 4) R(c, Math.round(Math.sin(y * 0.3 + t * 2) * 2), y, W, 2, '#22104a');
+    const call = Math.floor(t / 3) % 4;
+    const sinking = (t % 3) > 2.2;
+    for (let i = 0; i < 40; i++) {
+      const col = i % 8, row = Math.floor(i / 8);
+      const x = 16 + col * 44, y = 30 + row * 34;
+      const safe = tiles[(i + call) % 40] === call;
+      if (sinking && !safe) { c.globalAlpha = 0.25; }
+      R(c, x + 1, y + 3, 42, 31, '#0a0614');
+      R(c, x + 1, y + 1, 42, 30, TILE_COLS[tiles[(i + call) % 40]]);
+      c.globalAlpha = 1;
+    }
+    // Characters standing on tiles.
+    const spots = [[2, 1], [4, 2], [6, 1], [1, 3]];
+    [0, 2, 3, 4].forEach((ci, k) => {
+      const [col, row] = spots[k];
+      drawSprite(c, CAST[ci], t + k * 0.3, 16 + col * 44 + 8, 30 + row * 34 - 2);
+    });
+
+    // 1. Status bar.
+    R(c, 0, 0, W, 11, '#0a0614');
+    c.font = font(8); c.textBaseline = 'top'; c.textAlign = 'left';
+    c.fillStyle = '#fff4e0'; c.fillText('21:47', 4, 2);
+    c.textAlign = 'right'; c.fillText('5G', 352, 2);
+    const batt = Math.max(0.05, 1 - ((t * 0.06) % 1));
+    R(c, 358, 2, 20, 7, '#fff4e0'); R(c, 378, 4, 2, 3, '#fff4e0'); R(c, 359, 3, 18, 5, '#0a0614');
+    R(c, 359, 3, Math.round(18 * batt), 5, batt < 0.2 ? '#ff2e88' : '#c6ff3d');
+    // Lives strip.
+    R(c, 0, 11, W, 10, 'rgba(10,6,20,0.85)');
+    CAST.forEach((ch, i) => {
+      const x = 4 + i * 47;
+      R(c, x, 13, 6, 6, ch.sig);
+      for (let h = 0; h < 5; h++) R(c, x + 9 + h * 6, 14, 4, 4, h < 5 - (i % 3) ? '#ff2e88' : '#3a2766');
+    });
+
+    // 2. The Algoritmo drops in from the top.
+    const ph = t % 6;
+    if (ph < 2.4) {
+      const drop = Math.min(1, ph * 4) * (ph > 2.1 ? (2.4 - ph) / 0.3 : 1);
+      const y = Math.round(-20 + drop * 46);
+      R(c, 104, y, 176, 20, '#fff4e0');
+      R(c, 106, y + 2, 16, 16, '#ff2e88'); R(c, 108, y + 4, 12, 12, '#1b0b3a');
+      R(c, 110, y + 7, 8, 6, '#fff4e0'); R(c, 113, y + 8, 3, 3, '#ff2e88');
+      c.fillStyle = '#0a0614'; c.textAlign = 'left'; c.font = font(8);
+      c.fillText('ENTREGOU PRA 3', 128, y + 3);
+      c.fillText('PESSOAS.', 128, y + 11);
+    }
+
+    // 3. Right column.
+    const likes = 13 + Math.floor(t * 0.7);
+    const bump = (t % 3) > 2.2 && (t % 3) < 2.5 ? -2 : 0;
+    heartIcon(c, 362, 92 + bump, '#ff2e88');
+    c.textAlign = 'center'; c.font = font(8); c.fillStyle = '#fff4e0';
+    c.fillText(`${likes}K`, 367, 103);
+    R(c, 361, 118, 12, 8, '#fff4e0'); R(c, 363, 126, 3, 2, '#fff4e0');
+    c.fillText('842', 367, 131);
+    R(c, 362, 147, 8, 2, '#fff4e0'); R(c, 368, 144, 2, 8, '#fff4e0'); R(c, 370, 146, 2, 4, '#fff4e0');
+    c.fillText('396', 367, 157);
+    const a = t * 3;
+    c.save(); c.translate(367, 178); c.rotate(a);
+    R(c, -7, -7, 14, 14, '#24163f'); R(c, -3, -3, 6, 6, CAST[1].sig);
+    c.restore();
+
+    // 4. Rising comments.
+    COMMENTS.forEach((txt, i) => {
+      const life = (t * 0.35 + i / COMMENTS.length) % 1;
+      if (life > 0.85) return;
+      const y = Math.round(178 - life * 120);
+      c.globalAlpha = life < 0.1 ? life * 10 : life > 0.7 ? (0.85 - life) / 0.15 : 1;
+      c.font = font(8); c.textAlign = 'left';
+      const w = c.measureText(txt).width + 18;
+      const x = 340 - w - (i % 2) * 20;
+      R(c, x, y, w, 12, 'rgba(10,6,20,0.8)');
+      R(c, x + 3, y + 3, 6, 6, CAST[(i + 3) % 8].sig);
+      c.fillStyle = '#fff4e0'; c.fillText(txt, x + 12, y + 2);
+      c.globalAlpha = 1;
+    });
+
+    // 5. Caption block.
+    R(c, 0, 172, 230, 40, 'rgba(10,6,20,0.75)');
+    R(c, 5, 176, 12, 12, CAST[0].sig); R(c, 7, 178, 8, 8, '#f2c49a');
+    c.font = font(8); c.textAlign = 'left'; c.fillStyle = '#fff4e0';
+    c.fillText('@filtro.certo', 21, 178);
+    R(c, 134, 176, 44, 12, '#c6ff3d'); c.fillStyle = '#0a0614'; c.fillText('SEGUIR', 136, 178);
+    c.fillStyle = '#3ee8ff'; c.fillText('#filtro #fail #socorro', 5, 191);
+    const tick = 'SOM EM ALTA · MC ALGORITMO - DESLIZA PRA CIMA · ';
+    c.save(); c.beginPath(); c.rect(5, 200, 220, 10); c.clip();
+    c.fillStyle = '#a89cc8';
+    const off = (t * 30) % c.measureText(tick).width;
+    c.fillText(tick + tick, 5 - off, 201);
+    c.restore();
+
+    // 6. Clip progress.
+    R(c, 0, 213, W, 3, '#3a2766');
+    R(c, 0, 213, Math.round(W * ((t % 7) / 7)), 3, '#ff2e88');
+  }
+
+  let start = performance.now();
+  function frame(now) {
+    const t = reduce ? 1.2 : (now - start) / 1000;
+    sprites.forEach(({ ch, ctx, seed }) => {
+      ctx.clearRect(0, 0, 34, 34);
+      drawSprite(ctx, ch, t + seed, 5, 2);
+    });
+    drawAlgo(t);
+    drawMock(t);
+    if (!reduce) requestAnimationFrame(frame);
+  }
+  const go = () => requestAnimationFrame(frame);
+  (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(go, go);
+})();
+</script>
+</body>
+</html>
