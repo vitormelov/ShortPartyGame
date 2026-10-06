@@ -1,7 +1,7 @@
 import { ARENA_H, ARENA_W } from '@shared/arena';
 import { BALL_R, CX, CY, type PaddleState } from '@shared/minigames/paddle/logic';
 import { CHARACTERS, type PlayerId } from '@shared/types';
-import { PAL, outlinedText, portrait } from '../core/draw';
+import { BRAND, PAL, outlinedText, portrait } from '../core/draw';
 import { hash, type MinigameRenderer } from './renderer';
 
 /** Rotation that puts the local player's side at the bottom (kept for positions()). */
@@ -51,7 +51,7 @@ export const paddleRenderer: MinigameRenderer = {
     viewRot = rotFor(st, localId);
 
     // Neon void.
-    ctx.fillStyle = '#0a0618';
+    ctx.fillStyle = BRAND.roxo;
     ctx.fillRect(0, 0, ARENA_W, ARENA_H);
     for (let i = 0; i < 50; i++) {
       ctx.fillStyle = Math.sin(time * 2 + i) > 0.6 ? '#ffffff' : '#3a2a6a';

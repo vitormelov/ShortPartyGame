@@ -1,9 +1,9 @@
 import { ARENA_H, ARENA_W } from '@shared/arena';
 import { RESULT_TIME, TURN_TIME, type Dir, type LookState } from '@shared/minigames/look/logic';
-import { CHARACTERS, type PlayerId } from '@shared/types';
-import { PAL, outlinedText, sprite, text } from '../core/draw';
-import { BLOB } from './meteor';
+import { type PlayerId } from '@shared/types';
+import { BRAND, PAL, outlinedText, text } from '../core/draw';
 import { hash, type MinigameRenderer } from './renderer';
+import { drawCharacter } from '../core/cast';
 
 const DIR_VEC: ReadonlyArray<readonly [number, number]> = [
   [0, -1],
@@ -75,7 +75,7 @@ export const lookRenderer: MinigameRenderer = {
   render(ctx, raw, time, localId: PlayerId) {
     const st = raw as LookState;
     // Spotlit stage.
-    ctx.fillStyle = '#0e0818';
+    ctx.fillStyle = BRAND.roxo;
     ctx.fillRect(0, 0, ARENA_W, ARENA_H);
     for (let i = 0; i < 30; i++) {
       ctx.fillStyle = '#2a1a44';
@@ -121,16 +121,12 @@ export const lookRenderer: MinigameRenderer = {
     st.lookers.forEach((l, i) => {
       if (l.status === 'out') return;
       const x = slotX(i, n);
-      const ch = CHARACTERS[l.character];
       const caught = l.result === 'caught';
       const flash = caught && Math.floor(time * 10) % 2 === 0;
-      const colors = flash
-        ? { k: '#ffffff', c: '#ffffff', L: '#ffffff', K: '#ffffff', w: '#ffffff' }
-        : { k: PAL.ink, c: ch.color, L: ch.light, K: ch.dark, w: '#ffffff' };
       const hop = caught ? 0 : st.phase === 'result' && l.result === 'safe' ? Math.abs(Math.sin(time * 10)) * 3 : 0;
-      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillStyle = 'rgba(20,6,46,0.4)';
       ctx.fillRect(x - 4, ROW_Y - 1, 8, 2);
-      sprite(ctx, BLOB, x - 5, ROW_Y - 10 - hop, colors);
+      drawCharacter(ctx, l.character, x, ROW_Y - hop, { flash, time, pose: caught ? 'lose' : hop > 0 ? 'win' : 'idle' });
       const mine = l.id === localId;
       const ay = ROW_Y - 22;
       if (st.phase === 'choose') {

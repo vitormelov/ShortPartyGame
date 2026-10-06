@@ -1,9 +1,9 @@
-﻿import { ARENA_H, ARENA_W } from '@shared/arena';
-import { GROUND_Y, HAND_H, ROPE_LEFT, ROPE_RIGHT, jumpHeight, ropeHeight, type Jumper, type RopeState } from '@shared/minigames/rope/logic';
-import { CHARACTERS, type PlayerId } from '@shared/types';
+import { ARENA_H, ARENA_W } from '@shared/arena';
+import { GROUND_Y, HAND_H, JUMP_TIME, ROPE_LEFT, ROPE_RIGHT, jumpHeight, ropeHeight, type Jumper, type RopeState } from '@shared/minigames/rope/logic';
+import { type PlayerId } from '@shared/types';
 import { PAL, outlinedText, sprite, text } from '../core/draw';
-import { BLOB } from './meteor';
 import { hash, localMarker, type MinigameRenderer } from './renderer';
+import { drawCharacter, squash } from '../core/cast';
 
 /** Big angry hater that turns the rope (12x12 sprite drawn at 2x). */
 const TURNER = [
@@ -88,15 +88,13 @@ function drawRope(ctx: CanvasRenderingContext2D, st: RopeState, time: number, fr
 
 function drawJumper(ctx: CanvasRenderingContext2D, j: Jumper, time: number): void {
   if (j.status === 'out') return;
-  const ch = CHARACTERS[j.character];
-  const colors = { k: PAL.ink, c: ch.color, L: ch.light, K: ch.dark, w: '#ffffff' };
   if (j.status === 'dead') {
     if (j.deathAnim <= 0) return;
     // Tripped: flat on the floor with stars, a little scorched.
     ctx.save();
     ctx.translate(Math.round(j.x), GROUND_Y - 4);
     ctx.rotate(Math.PI / 2);
-    sprite(ctx, BLOB, -5, -8, { k: PAL.ink, c: '#5a3a2a', L: '#8a5a3a', K: '#3a2418', w: '#ffffff' });
+    drawCharacter(ctx, j.character, 0, 4, { dead: true, pose: 'lose' });
     ctx.restore();
     for (let k = 0; k < 3; k++) {
       const a = time * 6 + (k * Math.PI * 2) / 3;
@@ -107,10 +105,11 @@ function drawJumper(ctx: CanvasRenderingContext2D, j: Jumper, time: number): voi
   }
   if (j.ghost > 0 && Math.floor(time * 16) % 2 === 0) return;
   const h = jumpHeight(j);
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillStyle = 'rgba(20,6,46,0.4)';
   const sw = h > 4 ? 6 : 9;
   ctx.fillRect(Math.round(j.x - sw / 2), GROUND_Y - 1, sw, 2);
-  sprite(ctx, BLOB, j.x - 5, GROUND_Y - 10 - h, colors);
+  const ss = squash(`rope${j.id}`, j.jumpT >= 0, j.jumpT >= 0 && j.jumpT < JUMP_TIME / 2, time);
+  drawCharacter(ctx, j.character, j.x, GROUND_Y - h, { time, pose: h > 0 ? 'jump' : 'idle', ...ss });
 }
 
 export const ropeRenderer: MinigameRenderer = {

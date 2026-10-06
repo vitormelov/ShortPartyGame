@@ -1,7 +1,7 @@
 import { ARENA_H, ARENA_W } from '@shared/arena';
 import { COUNT_TIME, REVEAL_STEP, RESULT_TIME, revealTime, type CountState, type CrowdKind } from '@shared/minigames/count/logic';
 import type { PlayerId } from '@shared/types';
-import { PAL, outlinedText, panel, portrait, sprite, text } from '../core/draw';
+import { BRAND, PAL, outlinedText, panel, portrait, sprite, text } from '../core/draw';
 import type { MinigameRenderer } from './renderer';
 
 const HATER = [
@@ -41,7 +41,7 @@ function drawThing(ctx: CanvasRenderingContext2D, kind: CrowdKind, x: number, y:
 }
 
 function background(ctx: CanvasRenderingContext2D, time: number): void {
-  ctx.fillStyle = '#100a20';
+  ctx.fillStyle = BRAND.roxo;
   ctx.fillRect(0, 0, ARENA_W, ARENA_H);
   // Scrolling "comment section" lines.
   const off = Math.floor(time * 12) % 14;

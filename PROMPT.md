@@ -1,4 +1,4 @@
-﻿# ShortParty — Prompt de Criação
+# ShortParty — Prompt de Criação
 
 ## Visão geral
 
@@ -61,7 +61,7 @@ Todos com direcional + ação, tela única, 4–8 jogadores simultâneos, e com 
 | 15 | **Bolha Social** | Bumper Balls (Mario Party) | Cada um em cima de uma bola numa plataforma redonda sobre o mar, que encolhe com o tempo. Física com inércia e trombadas | Investida (arrancada que bate mais forte) | Cair da plataforma |
 | 16 | **Cancelamento** | Pushy Penguins (Mario Party 4) | Todos numa placa de gelo escorregadia; ondas de pinguins bravos (filas com buracos, colunas, V ou um pinguim solitário bem rápido) atravessam e empurram quem estiver no caminho | Empurrão | Cair na água |
 | 17 | **Conta os Haters** | Roll Call (Mario Party) | Uma rodada por clipe: os haters já estão na tela andando; cada um ajusta o contador (W soma, S diminui, Espaço confirma) e no fim do mesmo clipe sai o resultado. Variações: todos, só os vermelhos, ou "não conte os fãs" (corações misturados) | Confirmar cedo | Errar por 3 ou mais (o primeiro a confirmar o número exato ganha +1 vida) |
-| 18 | **Flame War** | Tanques (Mario Party / Wii Tanks) | Tanques vistos de cima, todos contra todos, numa arena com paredes de aço e caixas destrutíveis. Controle de tanque: W anda para frente, S dá ré, A/D giram o tanque (o canhão aponta para a frente do casco); as balas ricocheteiam 1 vez (dá para tabelar, ou se acertar). 2 de blindagem por vida. Caixas soltam tiro triplo, ricochete extra ou escudo | Atirar | Levar 2 tiros |
+| 18 | **Flame War** | Tanques (Wii Tanks) / Asteroids | Naves vistas de cima, todos contra todos, num campo de asteroides. Controle de tanque: W acelera, S dá ré, A/D giram a nave (o laser sai do bico). O laser para no primeiro asteroide, então as rochas servem de esconderijo. Sem power-ups e sem ricochete. 2 de blindagem por vida | Atirar | Levar 2 tiros |
 | 19 | **Corda Quente** | Hot Rope Jump (Mario Party) | Todos enfileirados enquanto dois haters giram uma corda em chamas; pule (Espaço ou W) quando ela passa nos pés. A corda acelera com o tempo e às vezes muda de ritmo ("ACELEROU!", "FREOU...") | Pular | Ser pego pela corda |
 | 20 | **Filtro Certo** | Mushroom Mix-Up / Hexagon Heat (Mario Party) | Grade de plataformas coloridas sobre a água; um influencer chama um filtro (#VINTAGE, #NEON, #GELO...) e, quando o tempo acaba, todas as outras afundam. Sem empurrão: a cada rodada as trocas ficam mais rápidas (menos tempo para chegar) | — (só WASD) | Estar fora do filtro certo quando afunda |
 | 21 | **Não Olhe** | Look Away (Mario Party 3) | Uma rodada por clipe: todos escolhem em segredo para onde olhar (WASD); o hater gira os olhos e escolhe um lado. Quem olhou para o mesmo lado perde. Quem não escolhe recebe um lado aleatório | — (WASD) | Olhar para o mesmo lado que o hater |
@@ -93,8 +93,8 @@ Novos minigames serão adicionados depois. A arquitetura deve tornar isso trivia
 
 ## Direção de arte e áudio
 
-- **Estilo 16-bit** inspirado em Super Mario Kart e F-Zero (SNES), Metroid/Super Metroid e Metal Slug (Neo Geo): pixel art nítida, paletas saturadas, contornos escuros, sprites pequenos e expressivos.
-- Resolução interna fixa (ex.: **384×216**), escalada por inteiro para a janela, sem filtro (nearest-neighbor).
+- **Estilo 32-bit** (Saturn / PlayStation / CPS3), evolução do visual 16-bit de Super Mario Kart, F-Zero, Metroid e Metal Slug: pixel art nítida com sombreamento em 4 a 5 tons por material, luz vindo de cima à esquerda, contorno colorido (nunca preto puro), luz de borda na cor de cada personagem e brilhos translúcidos. Elenco, paleta, o Algoritmo e a moldura de app seguem o guia de estilo (`docs/guia-de-estilo.html`).
+- Lógica do jogo em **384×216** pixels de jogo, desenhada numa tela de **768×432** (2 pixels reais por pixel de jogo, `RES` em `client/src/core/draw.ts`), escalada por inteiro para a janela, sem filtro (nearest-neighbor). Os personagens são gerados por formas sombreadas em `client/src/core/cast.ts`, no tamanho que cada tela precisar.
 - Cada minigame tem paleta própria e bem distinta, para que a troca seja reconhecida na hora.
 - HUD do feed sobreposto: barra de progresso do clipe, ícones laterais de rede social, @nome do minigame e a lista de jogadores com seus ❤ restantes.
 - No começo, gráficos gerados por código (placeholders), substituíveis por spritesheets depois.

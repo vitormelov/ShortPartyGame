@@ -1,9 +1,9 @@
-﻿import { ARENA_H, ARENA_W } from '@shared/arena';
+import { ARENA_H, ARENA_W } from '@shared/arena';
 import { CMD_STILL, DEATH_ANIM, POSE_ACTION, POSE_NONE, RAFT_Y, type MimicPlayer, type MimicState } from '@shared/minigames/mimic/logic';
 import { CHARACTERS, type PlayerId } from '@shared/types';
-import { PAL, outlinedText, panel, sprite, text } from '../core/draw';
-import { BLOB } from './meteor';
+import { PAL, outlinedText, panel, text } from '../core/draw';
 import { hash, type MinigameRenderer } from './renderer';
+import { drawCharacter } from '../core/cast';
 
 const POOL_Y = 132;
 const SIGN = { x: ARENA_W / 2 + 22, y: 14, w: 74, h: 50 };
@@ -149,7 +149,7 @@ function drawPlayer(ctx: CanvasRenderingContext2D, p: MimicPlayer, st: MimicStat
     ctx.beginPath();
     ctx.rect(0, 0, ARENA_W, RAFT_Y + 8);
     ctx.clip();
-    sprite(ctx, BLOB, p.x - 5, RAFT_Y - 10 + k * 22, { k: PAL.ink, c: ch.color, L: ch.light, K: ch.dark, w: '#ffffff' });
+    drawCharacter(ctx, p.character, p.x, RAFT_Y + k * 22, { pose: 'lose', time });
     ctx.restore();
     ctx.fillStyle = '#c8e8ff';
     for (let i = 0; i < 8; i++) {
@@ -160,7 +160,7 @@ function drawPlayer(ctx: CanvasRenderingContext2D, p: MimicPlayer, st: MimicStat
   }
   if (p.ghost > 0 && Math.floor(time * 16) % 2 === 0) return;
   const hop = p.pose !== POSE_NONE ? 1 : 0;
-  sprite(ctx, BLOB, p.x - 5, RAFT_Y - 10 - hop, { k: PAL.ink, c: ch.color, L: ch.light, K: ch.dark, w: '#ffffff' });
+  drawCharacter(ctx, p.character, p.x, RAFT_Y - hop, { time, frame: hop });
 
   // What this player is holding, so everyone can copy (or be fooled).
   const by = RAFT_Y - 22;

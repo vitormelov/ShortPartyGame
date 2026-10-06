@@ -1,4 +1,4 @@
-﻿import { ARENA_H, ARENA_W } from '@shared/arena';
+import { ARENA_H, ARENA_W } from '@shared/arena';
 import {
   CENTER,
   DEATH_ANIM,
@@ -13,10 +13,10 @@ import {
   type LaserState,
   type LaserWall,
 } from '@shared/minigames/laser/logic';
-import { CHARACTERS, type PlayerId } from '@shared/types';
-import { PAL, sprite } from '../core/draw';
-import { BLOB } from './meteor';
+import { type PlayerId } from '@shared/types';
+import { BRAND, PAL } from '../core/draw';
 import { localMarker, type MinigameRenderer } from './renderer';
+import { drawCharacter, squash } from '../core/cast';
 
 function jumpHeight(p: LaserPlayer): number {
   if (p.jump <= 0) return 0;
@@ -24,7 +24,7 @@ function jumpHeight(p: LaserPlayer): number {
 }
 
 function drawFloor(ctx: CanvasRenderingContext2D): void {
-  ctx.fillStyle = '#05040e';
+  ctx.fillStyle = BRAND.roxo;
   ctx.fillRect(0, 0, ARENA_W, ARENA_H);
   ctx.fillStyle = '#1a1830';
   ctx.fillRect(FIELD.x - 3, FIELD.y - 3, FIELD.w + 6, FIELD.h + 6);
@@ -128,14 +128,10 @@ function drawWall(ctx: CanvasRenderingContext2D, w: LaserWall, time: number): vo
 function drawPlayer(ctx: CanvasRenderingContext2D, p: LaserPlayer, time: number): void {
   if (p.status === 'out' || (p.status === 'dead' && p.deathAnim <= 0)) return;
   if (p.ghost > 0 && Math.floor(time * 16) % 2 === 0) return;
-  const ch = CHARACTERS[p.character];
   const dead = p.status === 'dead';
   const flash = dead && Math.floor(time * 20) % 2 === 0;
-  const colors = flash
-    ? { k: '#ffffff', c: '#3ee8ff', L: '#ffffff', K: '#3ee8ff', w: '#ffffff' }
-    : { k: PAL.ink, c: ch.color, L: ch.light, K: ch.dark, w: '#ffffff' };
   const h = jumpHeight(p);
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillStyle = 'rgba(20,6,46,0.45)';
   const sw = h > 0 ? 6 : 8;
   ctx.fillRect(Math.round(p.x - sw / 2), Math.round(p.y + 2), sw, 3);
   if (dead) {
@@ -143,12 +139,13 @@ function drawPlayer(ctx: CanvasRenderingContext2D, p: LaserPlayer, time: number)
     ctx.save();
     ctx.translate(Math.round(p.x), Math.round(p.y));
     ctx.scale(s, 1 + (1 - s));
-    sprite(ctx, BLOB, -5, -8, colors);
+    drawCharacter(ctx, p.character, 0, 2, { flash, pose: 'lose', time });
     ctx.restore();
     return;
   }
   const bob = p.walk > 0 && Math.floor(p.walk * 10) % 2 ? 1 : 0;
-  sprite(ctx, BLOB, p.x - 5, p.y - 8 - bob - h, colors);
+  const ss = squash(`laser${p.id}`, p.jump > 0, p.jump > JUMP_TIME / 2, time);
+  drawCharacter(ctx, p.character, p.x, p.y + 2 - h, { frame: bob, pose: h > 0 ? 'jump' : 'idle', time, ...ss });
 }
 
 export const laserRenderer: MinigameRenderer = {

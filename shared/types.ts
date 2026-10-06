@@ -1,4 +1,4 @@
-﻿export type PlayerId = number; // slot index 0..7
+export type PlayerId = number; // slot index 0..7
 
 export type BotDifficulty = 'easy' | 'medium' | 'hard';
 
@@ -31,16 +31,17 @@ export interface Character {
   light: string;
 }
 
+/** The eight characters: emojis from the comments come to life. `color` identifies the player everywhere. */
 export const CHARACTERS: Character[] = [
-  { name: 'BYTE', color: '#e83b3b', dark: '#8a1a2a', light: '#ff9a8a' },
-  { name: 'PIXEL', color: '#3b6ee8', dark: '#1a2a8a', light: '#8ab4ff' },
-  { name: 'GLITCH', color: '#3bc84a', dark: '#1a6a2a', light: '#9cf28a' },
-  { name: 'TURBO', color: '#f2c81e', dark: '#9a6a0a', light: '#fff08a' },
-  { name: 'NEON', color: '#f25ac8', dark: '#8a1a6a', light: '#ffaaee' },
-  { name: 'COMBO', color: '#f2862e', dark: '#9a3a0a', light: '#ffc88a' },
-  { name: 'LAG', color: '#2ed8e8', dark: '#0a6a7a', light: '#aaf6ff' },
-  { name: 'MOD', color: '#9a5af2', dark: '#4a1a8a', light: '#d2aaff' },
-];
+  { name: 'PALHAÇO', color: '#ff5a5a', dark: '#9a1a2a', light: '#ffa89a' },
+  { name: 'FOGO', color: '#ff8a1e', dark: '#9a3a0a', light: '#ffc88a' },
+  { name: 'RISADA', color: '#ffd23e', dark: '#9a6a0a', light: '#fff08a' },
+  { name: 'OLHINHOS', color: '#5cf26a', dark: '#1a7a2a', light: '#b8ffb0' },
+  { name: 'CHAD', color: '#3ee8ff', dark: '#0a6a8a', light: '#b0f6ff' },
+  { name: 'CHORÃO', color: '#3b7ef8', dark: '#1a2a8a', light: '#9ac0ff' },
+  { name: 'CAVEIRA', color: '#b89aff', dark: '#5a3aa8', light: '#e0d4ff' },
+  { name: 'DIVA', color: '#ff7ac8', dark: '#a8206a', light: '#ffc0e6' },
+]
 
 export const MAX_PLAYERS = 8;
 export const MIN_PLAYERS = 4;
@@ -94,5 +95,5 @@ export const DEFAULT_CONFIG: MatchConfig = {
   pollChance: 0.1,
   duelChance: 0.08,
   onlyGame: null,
-  tutorials: true,
+  tutorials: false,
 };

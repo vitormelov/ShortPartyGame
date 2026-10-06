@@ -1,21 +1,32 @@
-﻿import { SCREEN_H, SCREEN_W } from '@shared/arena';
+import { SCREEN_H, SCREEN_W } from '@shared/arena';
 import { Sfx } from './core/audio';
-import { FONT } from './core/draw';
+import { FONT, RES } from './core/draw';
 import { Input } from './core/input';
+import { Music } from './core/music';
+import { loadSettings } from './core/settings';
 import type { App, Screen } from './screens/screen';
 import { TitleScreen } from './screens/title';
 
 const canvas = document.getElementById('screen') as HTMLCanvasElement;
-canvas.width = SCREEN_W;
-canvas.height = SCREEN_H;
 const ctx = canvas.getContext('2d')!;
-ctx.imageSmoothingEnabled = false;
+/** Device pixels per game pixel. Game logic and drawing stay in game pixels (384x216). */
+let scale = RES;
 
+/**
+ * Fills the window with the largest 16:9 picture, letterboxed. The canvas is sized in device pixels
+ * (1920x1080 on a 1080p screen, so each game pixel is exactly 5x5) and everything is drawn through a
+ * scale transform, so pixels stay crisp instead of being stretched by CSS.
+ */
 function fit(): void {
-  const s = Math.min(window.innerWidth / SCREEN_W, window.innerHeight / SCREEN_H);
-  const scale = s >= 1 ? Math.floor(s) : s; // integer scaling keeps pixels square
-  canvas.style.width = `${SCREEN_W * scale}px`;
-  canvas.style.height = `${SCREEN_H * scale}px`;
+  const dpr = window.devicePixelRatio || 1;
+  const s = Math.min((window.innerWidth * dpr) / SCREEN_W, (window.innerHeight * dpr) / SCREEN_H);
+  // Always fill: on a 1080p screen this is exactly 5. Other sizes get a fractional scale.
+  scale = s;
+  canvas.width = Math.round(SCREEN_W * scale);
+  canvas.height = Math.round(SCREEN_H * scale);
+  canvas.style.width = `${canvas.width / dpr}px`;
+  canvas.style.height = `${canvas.height / dpr}px`;
+  ctx.imageSmoothingEnabled = false;
 }
 window.addEventListener('resize', fit);
 fit();
@@ -23,9 +34,11 @@ fit();
 class Game implements App {
   readonly input = new Input();
   readonly sfx = new Sfx();
+  readonly music = new Music(() => this.sfx.output());
   private screen: Screen;
 
   constructor() {
+    this.sfx.setVolume(loadSettings().volume / 10);
     this.input.onAnyKey(() => this.sfx.unlock());
     this.screen = new TitleScreen(this);
   }
@@ -38,6 +51,8 @@ class Game implements App {
     this.input.poll();
     this.screen.update(dt);
     ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
     try {
       this.screen.render(ctx);
       ctx.restore();

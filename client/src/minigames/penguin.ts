@@ -1,9 +1,9 @@
-﻿import { ARENA_H, ARENA_W } from '@shared/arena';
+import { ARENA_H, ARENA_W } from '@shared/arena';
 import { FALL_TIME, FLOE, SHOVE_COOLDOWN, type Penguin, type PenguinState, type Skater } from '@shared/minigames/penguin/logic';
-import { CHARACTERS, type PlayerId } from '@shared/types';
+import { type PlayerId } from '@shared/types';
 import { PAL, sprite } from '../core/draw';
-import { BLOB } from './meteor';
 import { hash, localMarker, type MinigameRenderer } from './renderer';
+import { drawCharacter } from '../core/cast';
 
 const PENGUIN = [
   '....kkkk....',
@@ -70,7 +70,7 @@ function drawFloe(ctx: CanvasRenderingContext2D): void {
 function drawPenguin(ctx: CanvasRenderingContext2D, p: Penguin, time: number): void {
   const flip = p.vx < 0 || (p.vx === 0 && p.id % 2 === 1);
   const bob = Math.floor(time * 10 + p.id) % 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillStyle = 'rgba(20,6,46,0.25)';
   ctx.fillRect(Math.round(p.x - 5), Math.round(p.y + 4), 10, 2);
   sprite(ctx, PENGUIN, p.x - 6, p.y - 7 - bob, PENGUIN_COLORS, 1, flip);
 }
@@ -78,8 +78,6 @@ function drawPenguin(ctx: CanvasRenderingContext2D, p: Penguin, time: number): v
 function drawSkater(ctx: CanvasRenderingContext2D, s: Skater, time: number): void {
   if (s.status === 'out' || s.status === 'dead') return;
   if (s.ghost > 0 && Math.floor(time * 16) % 2 === 0) return;
-  const ch = CHARACTERS[s.character];
-  const colors = { k: PAL.ink, c: ch.color, L: ch.light, K: ch.dark, w: '#ffffff' };
   if (s.status === 'falling') {
     const k = 1 - s.fall / FALL_TIME;
     ctx.strokeStyle = `rgba(220,240,255,${1 - k})`;
@@ -91,7 +89,7 @@ function drawSkater(ctx: CanvasRenderingContext2D, s: Skater, time: number): voi
     ctx.beginPath();
     ctx.rect(s.x - 8, s.y - 20, 16, 20);
     ctx.clip();
-    sprite(ctx, BLOB, s.x - 5, s.y - 8 + k * 10, colors, 1, s.facing < 0);
+    drawCharacter(ctx, s.character, s.x, s.y + 2 + k * 14, { flip: s.facing < 0, pose: 'lose', time });
     ctx.restore();
     return;
   }
@@ -99,7 +97,7 @@ function drawSkater(ctx: CanvasRenderingContext2D, s: Skater, time: number): voi
   ctx.fillRect(Math.round(s.x - 4), Math.round(s.y + 2), 8, 3);
   if (s.shove > 0) {
     ctx.globalAlpha = 0.4;
-    sprite(ctx, BLOB, s.x - 5 - s.vx * 0.05, s.y - 8 - s.vy * 0.05, colors, 1, s.facing < 0);
+    drawCharacter(ctx, s.character, s.x - s.vx * 0.05, s.y + 2 - s.vy * 0.05, { flip: s.facing < 0, time });
     ctx.globalAlpha = 1;
   }
   // Skid marks when sliding fast.
@@ -107,7 +105,7 @@ function drawSkater(ctx: CanvasRenderingContext2D, s: Skater, time: number): voi
     ctx.fillStyle = '#c8e4f4';
     ctx.fillRect(Math.round(s.x - s.vx * 0.08) - 1, Math.round(s.y + 3 - s.vy * 0.08), 2, 1);
   }
-  sprite(ctx, BLOB, s.x - 5, s.y - 8, colors, 1, s.facing < 0);
+  drawCharacter(ctx, s.character, s.x, s.y + 2, { flip: s.facing < 0, time });
 }
 
 export const penguinRenderer: MinigameRenderer = {

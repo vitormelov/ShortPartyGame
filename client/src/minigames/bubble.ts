@@ -1,9 +1,9 @@
-﻿import { ARENA_H, ARENA_W } from '@shared/arena';
+import { ARENA_H, ARENA_W } from '@shared/arena';
 import { BALL_R, CENTER, CHARGE_COOLDOWN, FALL_TIME, START_R, type Ball, type BubbleState } from '@shared/minigames/bubble/logic';
 import { CHARACTERS, type PlayerId } from '@shared/types';
-import { PAL, sprite } from '../core/draw';
-import { BLOB } from './meteor';
+import { PAL } from '../core/draw';
 import { hash, localMarker, type MinigameRenderer } from './renderer';
+import { drawCharacter } from '../core/cast';
 
 function drawSea(ctx: CanvasRenderingContext2D, time: number): void {
   for (let y = 0; y < ARENA_H; y += 4) {
@@ -113,7 +113,7 @@ function drawBall(ctx: CanvasRenderingContext2D, b: Ball, time: number): void {
 
   // The rider on top.
   if (b.status === 'alive') {
-    sprite(ctx, BLOB, x - 5, y - BALL_R - 8, { k: PAL.ink, c: ch.color, L: ch.light, K: ch.dark, w: '#ffffff' });
+    drawCharacter(ctx, b.character, x, y - BALL_R + 2, { time });
   }
 }
 

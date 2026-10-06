@@ -1,4 +1,4 @@
-﻿import { adRenderer } from './ad';
+import { adRenderer } from './ad';
 import { beamRenderer } from './beam';
 import { bombRenderer } from './bomb';
 import { bookRenderer } from './book';
@@ -62,7 +62,7 @@ export const CLIP_COLORS: Record<string, string> = {
   bubble: '#ff8ad8',
   penguin: '#9ad8ff',
   count: '#e83b3b',
-  tank: '#c8a46a',
+  tank: '#b89aff',
   rope: '#ff6a1e',
   filter: '#3ee8ff',
   look: '#e83b3b',

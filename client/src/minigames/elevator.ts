@@ -1,12 +1,12 @@
-﻿import { ARENA_H, ARENA_W } from '@shared/arena';
+import { ARENA_H, ARENA_W } from '@shared/arena';
 import { DEATH_ANIM, FLOOR_Y, PLAT_H, ROW_GAP, floorOf, type EPlayer, type ElevatorState, type Platform } from '@shared/minigames/elevator/logic';
 import { CHARACTERS, type PlayerId } from '@shared/types';
-import { PAL, sprite, text } from '../core/draw';
-import { BLOB } from './meteor';
+import { PAL, text } from '../core/draw';
 import { hash, localMarker, type MinigameRenderer } from './renderer';
+import { drawCharacter, squash } from '../core/cast';
 
 function drawShaft(ctx: CanvasRenderingContext2D, camY: number): void {
-  ctx.fillStyle = '#141a2e';
+  ctx.fillStyle = '#1b1240';
   ctx.fillRect(0, 0, ARENA_W, ARENA_H);
   // Parallax wall panels.
   const off = Math.floor(camY * 0.5);
@@ -43,7 +43,7 @@ function drawPlatform(ctx: CanvasRenderingContext2D, pl: Platform, camY: number)
   const draw = (x: number) => {
     const w = Math.round(pl.w);
     x = Math.round(x);
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillStyle = 'rgba(20,6,46,0.35)';
     ctx.fillRect(x + 2, y + PLAT_H, w, 3);
     ctx.fillStyle = PAL.ink;
     ctx.fillRect(x - 1, y - 1, w + 2, PLAT_H + 2);
@@ -96,9 +96,6 @@ function drawPlayer(ctx: CanvasRenderingContext2D, p: EPlayer, camY: number, tim
   const ch = CHARACTERS[p.character];
   const dead = p.status === 'dead';
   const flash = dead && Math.floor(time * 20) % 2 === 0;
-  const colors = flash
-    ? { k: '#ffffff', c: '#ff6a1e', L: '#ffd23e', K: '#c8261e', w: '#ffffff' }
-    : { k: PAL.ink, c: ch.color, L: ch.light, K: ch.dark, w: '#ffffff' };
   const y = p.y - camY;
   const draw = (x: number) => {
     if (dead) {
@@ -106,11 +103,12 @@ function drawPlayer(ctx: CanvasRenderingContext2D, p: EPlayer, camY: number, tim
       ctx.save();
       ctx.translate(Math.round(x), Math.round(y));
       ctx.scale(1, s);
-      sprite(ctx, BLOB, -5, -10, colors);
+      drawCharacter(ctx, p.character, 0, 0, { flash, pose: 'lose', time });
       ctx.restore();
       return;
     }
-    sprite(ctx, BLOB, x - 5, y - 10, colors, 1, p.facing < 0);
+    const ss = squash(`elev${p.id}`, !p.grounded, p.vy < 0, time);
+    drawCharacter(ctx, p.character, x, y, { flip: p.facing < 0, pose: p.grounded ? 'idle' : 'jump', time, ...ss });
   };
   draw(p.x);
   if (p.x > ARENA_W - 6) draw(p.x - ARENA_W);

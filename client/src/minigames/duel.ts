@@ -1,4 +1,4 @@
-﻿import { ARENA_H, ARENA_W } from '@shared/arena';
+import { ARENA_H, ARENA_W } from '@shared/arena';
 import {
   KEY_SPACE,
   PONG,
@@ -10,10 +10,10 @@ import {
   type DuelState,
 } from '@shared/minigames/duel/logic';
 import { CHARACTERS, type PlayerId } from '@shared/types';
-import { PAL, outlinedText, panel, portrait, sprite, text } from '../core/draw';
-import { BLOB } from './meteor';
+import { BRAND, PAL, outlinedText, panel, portrait, text } from '../core/draw';
 import { arrow } from './mimic';
 import { hash, type MinigameRenderer } from './renderer';
+import { drawCharacter } from '../core/cast';
 
 const KIND_NAME: Record<DuelKind, string> = { quickdraw: 'QUICK DRAW', sword: 'DUELO DE ESPADAS', pong: 'PONG' };
 const KIND_HINT: Record<DuelKind, string> = {
@@ -22,13 +22,6 @@ const KIND_HINT: Record<DuelKind, string> = {
   pong: 'W/S MOVE A RAQUETE  1 PONTO',
 };
 const WHEEL = { x: ARENA_W / 2, y: 106, r: 78 };
-
-const colorsOf = (character: number, flash = false) => {
-  const ch = CHARACTERS[character];
-  return flash
-    ? { k: '#ffffff', c: '#ffffff', L: '#ffffff', K: '#ffffff', w: '#ffffff' }
-    : { k: PAL.ink, c: ch.color, L: ch.light, K: ch.dark, w: '#ffffff' };
-};
 
 function nameOf(st: DuelState, idx: number): string {
   return CHARACTERS[st.candidates[idx].character].name;
@@ -204,13 +197,15 @@ function drawIntro(ctx: CanvasRenderingContext2D, st: DuelState, time: number, l
 // ---------- Quick Draw (cork pistols in a western town) ----------
 
 function cowboy(ctx: CanvasRenderingContext2D, character: number, x: number, y: number, facing: 1 | -1, dazed: boolean, time: number): void {
-  sprite(ctx, BLOB, x - 10, y - 20, colorsOf(character), 2, facing < 0);
+  drawCharacter(ctx, character, x, y + 1, { size: 28, flip: facing < 0, pose: dazed ? 'lose' : 'idle', time });
   // hat
+  const hy = dazed ? -1 : -4;
   ctx.fillStyle = '#3a2410';
-  ctx.fillRect(x - 11, y - 22, 22, 3);
-  ctx.fillRect(x - 6, y - 29, 12, 7);
-  ctx.fillStyle = '#5a3a1a';
-  ctx.fillRect(x - 6, y - 24, 12, 2);
+  ctx.fillRect(x - 12, y - 22 + hy, 24, 3);
+  ctx.fillRect(x - 7, y - 29 + hy, 14, 7);
+  ctx.fillStyle = '#6a4a22';
+  ctx.fillRect(x - 7, y - 24 + hy, 14, 2);
+  ctx.fillRect(x - 11, y - 22 + hy, 6, 1);
   // cork pistol
   const gx = x + facing * 11;
   ctx.fillStyle = PAL.ink;
@@ -222,7 +217,7 @@ function cowboy(ctx: CanvasRenderingContext2D, character: number, x: number, y: 
     for (let k = 0; k < 3; k++) {
       const a = time * 6 + (k * Math.PI * 2) / 3;
       ctx.fillStyle = PAL.yellow;
-      ctx.fillRect(Math.round(x + Math.cos(a) * 10), Math.round(y - 32 + Math.sin(a) * 3), 2, 2);
+      ctx.fillRect(Math.round(x + Math.cos(a) * 10), Math.round(y - 34 + Math.sin(a) * 3), 2, 2);
     }
   }
 }
@@ -314,10 +309,7 @@ function drawQuickDraw(ctx: CanvasRenderingContext2D, st: DuelState, time: numbe
 // ---------- Sword Swipe (on a pier, sea behind) ----------
 
 function swordsman(ctx: CanvasRenderingContext2D, character: number, x: number, y: number, facing: 1 | -1, swing: number, flash: boolean): void {
-  sprite(ctx, BLOB, x - 10, y - 20, colorsOf(character, flash), 2, facing < 0);
-  // headband
-  ctx.fillStyle = CHARACTERS[character].dark;
-  ctx.fillRect(x - 9, y - 17, 18, 2);
+  drawCharacter(ctx, character, x, y + 1, { size: 28, flip: facing < 0, flash, pose: swing > 0.5 ? 'win' : 'idle' });
   // sword: raised, then slashing down on each correct move
   const a = facing > 0 ? -Math.PI / 3 + swing * 1.4 : Math.PI + Math.PI / 3 - swing * 1.4;
   const hx = x + facing * 9;
@@ -424,7 +416,7 @@ function drawSword(ctx: CanvasRenderingContext2D, st: DuelState, time: number): 
 // ---------- Pong ----------
 
 function drawPong(ctx: CanvasRenderingContext2D, st: DuelState): void {
-  ctx.fillStyle = '#05050e';
+  ctx.fillStyle = BRAND.roxo;
   ctx.fillRect(0, 0, ARENA_W, ARENA_H);
   ctx.fillStyle = '#c8c4d8';
   ctx.fillRect(0, PONG.top - 2, ARENA_W, 2);

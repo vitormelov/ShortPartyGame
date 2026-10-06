@@ -1,9 +1,9 @@
 import { ARENA_H, ARENA_W } from '@shared/arena';
 import { COLS, DEATH_ANIM, FILTERS, RISE_TIME, ROWS, SINK_TIME, TILE_H, TILE_W, GRID, type FPlayer, type FilterState } from '@shared/minigames/filter/logic';
-import { CHARACTERS, type PlayerId } from '@shared/types';
-import { PAL, outlinedText, panel, sprite } from '../core/draw';
-import { BLOB } from './meteor';
+import { type PlayerId } from '@shared/types';
+import { PAL, outlinedText, panel } from '../core/draw';
 import { hash, localMarker, type MinigameRenderer } from './renderer';
+import { drawCharacter } from '../core/cast';
 
 function shade(hex: string, k: number): string {
   const n = parseInt(hex.slice(1), 16);
@@ -71,16 +71,14 @@ function drawTiles(ctx: CanvasRenderingContext2D, st: FilterState, time: number)
 function drawPlayer(ctx: CanvasRenderingContext2D, p: FPlayer, time: number): void {
   if (p.status === 'out' || (p.status === 'dead' && p.deathAnim <= 0)) return;
   if (p.ghost > 0 && Math.floor(time * 16) % 2 === 0) return;
-  const ch = CHARACTERS[p.character];
-  const colors = { k: PAL.ink, c: ch.color, L: ch.light, K: ch.dark, w: '#ffffff' };
   if (p.status === 'dead') {
     // Sinking with a splash.
     const s = p.deathAnim / DEATH_ANIM;
     ctx.save();
     ctx.beginPath();
-    ctx.rect(p.x - 8, p.y - 14, 16, 12 + 2);
+    ctx.rect(p.x - 8, p.y - 16, 16, 18);
     ctx.clip();
-    sprite(ctx, BLOB, p.x - 5, p.y - 8 + (1 - s) * 12, colors);
+    drawCharacter(ctx, p.character, p.x, p.y + 2 + (1 - s) * 16, { pose: 'lose', time });
     ctx.restore();
     ctx.fillStyle = '#ffffff';
     const r = 3 + (1 - s) * 7;
@@ -89,9 +87,9 @@ function drawPlayer(ctx: CanvasRenderingContext2D, p: FPlayer, time: number): vo
     return;
   }
   const bob = p.walk > 0 && Math.floor(p.walk * 10) % 2 ? 1 : 0;
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillStyle = 'rgba(20,6,46,0.35)';
   ctx.fillRect(Math.round(p.x - 4), Math.round(p.y + 1), 8, 3);
-  sprite(ctx, BLOB, p.x - 5, p.y - 8 - bob, colors);
+  drawCharacter(ctx, p.character, p.x, p.y + 2, { frame: bob, time });
 }
 
 export const filterRenderer: MinigameRenderer = {

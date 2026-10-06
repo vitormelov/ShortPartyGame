@@ -1,9 +1,9 @@
-﻿import { ARENA_H, ARENA_W } from '@shared/arena';
+import { ARENA_H, ARENA_W } from '@shared/arena';
 import { DEATH_ANIM, FIELD, SHOVE_COOLDOWN, SLAM_TIME, TURN_TIME, type BookPlayer, type BookState, type Hole } from '@shared/minigames/book/logic';
-import { CHARACTERS, type PlayerId } from '@shared/types';
-import { PAL, outlinedText, sprite, text } from '../core/draw';
-import { BLOB } from './meteor';
+import { type PlayerId } from '@shared/types';
+import { PAL, outlinedText, text } from '../core/draw';
 import { hash, localMarker, type MinigameRenderer } from './renderer';
+import { drawCharacter } from '../core/cast';
 
 function drawTable(ctx: CanvasRenderingContext2D): void {
   for (let y = 0; y < ARENA_H; y += 6) {
@@ -77,8 +77,6 @@ function drawPage(ctx: CanvasRenderingContext2D, st: BookState, scaleX: number, 
 
 function drawPlayer(ctx: CanvasRenderingContext2D, p: BookPlayer, time: number): void {
   if (p.status === 'out') return;
-  const ch = CHARACTERS[p.character];
-  const colors = { k: PAL.ink, c: ch.color, L: ch.light, K: ch.dark, w: '#ffffff' };
   if (p.status === 'dead') {
     if (p.deathAnim <= 0) return;
     // Pancake.
@@ -86,20 +84,20 @@ function drawPlayer(ctx: CanvasRenderingContext2D, p: BookPlayer, time: number):
     ctx.globalAlpha = Math.min(1, p.deathAnim / (DEATH_ANIM * 0.5));
     ctx.translate(Math.round(p.x), Math.round(p.y));
     ctx.scale(1.6, 0.3);
-    sprite(ctx, BLOB, -5, -6, colors);
+    drawCharacter(ctx, p.character, 0, 4, { pose: 'lose', time });
     ctx.restore();
     return;
   }
   if (p.ghost > 0 && Math.floor(time * 16) % 2 === 0) return;
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillStyle = 'rgba(20,6,46,0.25)';
   ctx.fillRect(Math.round(p.x - 4), Math.round(p.y + 2), 8, 3);
   if (p.shoveT > 0) {
     ctx.globalAlpha = 0.4;
-    sprite(ctx, BLOB, p.x - 5 - p.fx * 6, p.y - 8 - p.fy * 6, colors);
+    drawCharacter(ctx, p.character, p.x - p.fx * 6, p.y + 2 - p.fy * 6, { time });
     ctx.globalAlpha = 1;
   }
   const bob = p.walk > 0 && Math.floor(p.walk * 10) % 2 ? 1 : 0;
-  sprite(ctx, BLOB, p.x - 5, p.y - 8 - bob, colors);
+  drawCharacter(ctx, p.character, p.x, p.y + 2, { frame: bob, flip: p.fx < 0, time });
 }
 
 export const bookRenderer: MinigameRenderer = {

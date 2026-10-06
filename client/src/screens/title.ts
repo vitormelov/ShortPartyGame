@@ -1,7 +1,10 @@
-﻿import { SCREEN_H, SCREEN_W } from '@shared/arena';
+import { SCREEN_H, SCREEN_W } from '@shared/arena';
 import { CHARACTERS } from '@shared/types';
-import { PAL, heart, outlinedText, portrait, text } from '../core/draw';
+import { drawCharacter } from '../core/cast';
+import { PAL, heart, outlinedText, panel, text } from '../core/draw';
+import { drawAlgoritmo } from '../feed/algoritmo';
 import type { App, Screen } from './screen';
+import { OptionsScreen } from './options';
 import { SelectScreen } from './select';
 
 const CARDS = [
@@ -27,16 +30,38 @@ const CARDS = [
   { name: 'ANÚNCIO', color: '#3b6ee8' },
 ];
 
+const MENU = ['JOGAR SOLO', 'MULTIPLAYER', 'OPÇÕES'] as const;
+
 export class TitleScreen implements Screen {
   private t = 0;
+  private item = 0;
 
-  constructor(private app: App) {}
+  constructor(private app: App) {
+    app.music.rate = 1;
+    app.music.tension = 0;
+    app.music.play('theme', 'menu');
+  }
 
   update(dt: number): void {
     this.t += dt;
-    if (this.app.input.pressed('action')) {
-      this.app.sfx.play('confirm');
-      this.app.go(new SelectScreen(this.app));
+    const inp = this.app.input;
+    if (inp.pressed('up')) {
+      this.item = (this.item + MENU.length - 1) % MENU.length;
+      this.app.sfx.play('menu');
+    }
+    if (inp.pressed('down')) {
+      this.item = (this.item + 1) % MENU.length;
+      this.app.sfx.play('menu');
+    }
+    if (inp.pressed('action')) {
+      const choice = MENU[this.item];
+      if (choice === 'OPÇÕES') {
+        this.app.sfx.play('confirm');
+        this.app.go(new OptionsScreen(this.app));
+      } else {
+        this.app.sfx.play('jingle');
+        this.app.go(new SelectScreen(this.app, choice === 'MULTIPLAYER' ? 'multi' : 'solo'));
+      }
     }
   }
 
@@ -44,7 +69,7 @@ export class TitleScreen implements Screen {
     ctx.fillStyle = PAL.night;
     ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
     for (let y = 0; y < SCREEN_H; y += 6) {
-      ctx.fillStyle = (y / 6) % 2 ? '#1a0f32' : PAL.night;
+      ctx.fillStyle = (y / 6) % 2 ? '#22104a' : PAL.night;
       ctx.fillRect(0, y, SCREEN_W, 3);
     }
 
@@ -72,9 +97,9 @@ export class TitleScreen implements Screen {
       const oy = py + (k - swipe) * ph;
       ctx.fillStyle = card.color;
       ctx.fillRect(px, oy, pw, ph);
-      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillStyle = 'rgba(20,6,46,0.25)';
       for (let y = 0; y < ph; y += 8) ctx.fillRect(px, oy + y, pw, 4);
-      portrait(ctx, (step + k) % CHARACTERS.length, px + pw / 2 - 16, oy + 50, 2);
+      drawCharacter(ctx, (step + k) % CHARACTERS.length, px + pw / 2, oy + 90, { size: 48, pose: 'win', frame: Math.floor(this.t * 4) % 2, time: this.t });
       text(ctx, card.name, px + pw / 2, oy + 96, PAL.white, 8, 'center');
       heart(ctx, px + pw - 14, oy + 120);
       text(ctx, `${(((step + k) * 37) % 90) + 9}K`, px + pw - 2, oy + 129, PAL.white, 8, 'right');
@@ -85,12 +110,29 @@ export class TitleScreen implements Screen {
 
     // Logo.
     const bob = Math.round(Math.sin(this.t * 3) * 2);
-    outlinedText(ctx, 'SHORT', 122, 44 + bob, PAL.pink, 32);
-    outlinedText(ctx, 'PARTY', 122, 82 - bob, PAL.yellow, 32);
-    text(ctx, 'O PARTY GAME', 122, 126, PAL.cyan, 8, 'center');
-    text(ctx, 'DE 5 SEGUNDOS', 122, 138, PAL.cyan, 8, 'center');
+    outlinedText(ctx, 'SHORT', 112, 34 + bob, PAL.pink, 32);
+    outlinedText(ctx, 'PARTY', 112, 70 - bob, PAL.yellow, 32);
+    text(ctx, 'O PARTY GAME', 112, 110, PAL.cyan, 8, 'center');
+    text(ctx, 'DE 5 SEGUNDOS', 112, 120, PAL.cyan, 8, 'center');
 
-    if (Math.floor(this.t * 2) % 2 === 0) text(ctx, 'PRESSIONE ESPAÇO', 122, 172, PAL.white, 8, 'center');
-    text(ctx, 'FASE 1 - LOCAL COM BOTS', 4, SCREEN_H - 10, PAL.grey);
+    // The Algoritmo, the host, keeping an eye on the feed.
+    const ay = 64 + Math.round(Math.sin(this.t * 2) * 1.5);
+    const frac2 = this.t % 1;
+    const look = frac2 < 0.25 ? { x: 1, y: 0.6 } : { x: Math.sin(this.t * 1.3) * 0.6, y: 0.3 };
+    drawAlgoritmo(ctx, 221, ay, 1.8, this.t, look, Math.floor(this.t / 3.2) % 3 === 2 ? 'smug' : 'normal');
+    // Main menu.
+    MENU.forEach((label, i) => {
+      const sel = this.item === i;
+      const y = 136 + i * 19;
+      const w = 132;
+      const x = 112 - w / 2 + (sel ? Math.round(Math.sin(this.t * 8)) : 0);
+      panel(ctx, x, y, w, 15, sel ? (Math.floor(this.t * 4) % 2 ? PAL.pink : '#c8206a') : PAL.panel, sel ? PAL.white : PAL.panelLight);
+      text(ctx, label, x + w / 2, y + 4, sel ? PAL.white : PAL.grey, 8, 'center');
+      if (sel) {
+        ctx.fillStyle = PAL.yellow;
+        for (let k = 0; k < 4; k++) ctx.fillRect(x - 8 + k, y + 4 + k * 0.5, 1, 7 - k);
+      }
+    });
+    text(ctx, 'W/S ESCOLHE  ESPAÇO CONFIRMA', 4, SCREEN_H - 10, PAL.grey);
   }
 }

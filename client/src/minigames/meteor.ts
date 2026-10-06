@@ -1,21 +1,9 @@
-﻿import { ARENA_H, ARENA_W } from '@shared/arena';
+import { ARENA_H, ARENA_W } from '@shared/arena';
 import { CRATER_TIME, DEATH_ANIM, FIELD, type MPlayer, type MeteorState } from '@shared/minigames/meteor/logic';
-import { CHARACTERS, type PlayerId } from '@shared/types';
-import { PAL, sprite } from '../core/draw';
+import { type PlayerId } from '@shared/types';
+import { PAL } from '../core/draw';
 import { hash, localMarker, type MinigameRenderer } from './renderer';
-
-export const BLOB = [
-  '...kkkk...',
-  '.kkccccKk.',
-  '.kcLccccKk',
-  'kcLccccccK',
-  'kccwkcwkcK',
-  'kccwkcwkcK',
-  'kcccccccKK',
-  '.kccccccK.',
-  '..kKKKKk..',
-  '...kkkk...',
-];
+import { drawCharacter } from '../core/cast';
 
 function drawGround(ctx: CanvasRenderingContext2D, time: number): void {
   // Lava all around the field.
@@ -52,17 +40,13 @@ function drawGround(ctx: CanvasRenderingContext2D, time: number): void {
 function drawPlayer(ctx: CanvasRenderingContext2D, p: MPlayer, time: number): void {
   if (p.status === 'out' || (p.status === 'dead' && p.deathAnim <= 0)) return;
   if (p.ghost > 0 && Math.floor(time * 16) % 2 === 0) return;
-  const ch = CHARACTERS[p.character];
   const flash = p.status === 'dead' && Math.floor(time * 20) % 2 === 0;
-  const colors = flash
-    ? { k: '#ffffff', c: '#ffffff', L: '#ffffff', K: '#ffffff', w: '#ffffff' }
-    : { k: PAL.ink, c: ch.color, L: ch.light, K: ch.dark, w: '#ffffff' };
   const bob = p.walk > 0 && Math.floor(p.walk * 10) % 2 ? 1 : 0;
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillStyle = 'rgba(20,6,46,0.35)';
   ctx.fillRect(Math.round(p.x - 4), Math.round(p.y + 2), 8, 3);
   if (p.dashT > 0) {
     ctx.globalAlpha = 0.4;
-    sprite(ctx, BLOB, p.x - 5 - p.fx * 6, p.y - 8 - p.fy * 6, colors);
+    drawCharacter(ctx, p.character, p.x - p.fx * 6, p.y + 2 - p.fy * 6, { time });
     ctx.globalAlpha = 1;
   }
   if (p.status === 'dead') {
@@ -70,11 +54,11 @@ function drawPlayer(ctx: CanvasRenderingContext2D, p: MPlayer, time: number): vo
     ctx.save();
     ctx.translate(Math.round(p.x), Math.round(p.y));
     ctx.scale(1 + (1 - s), s);
-    sprite(ctx, BLOB, -5, -8, colors);
+    drawCharacter(ctx, p.character, 0, 2, { flash, pose: 'lose', time });
     ctx.restore();
     return;
   }
-  sprite(ctx, BLOB, p.x - 5, p.y - 8 - bob, colors);
+  drawCharacter(ctx, p.character, p.x, p.y + 2, { frame: bob, flip: p.fx < 0, time });
 }
 
 export const meteorRenderer: MinigameRenderer = {

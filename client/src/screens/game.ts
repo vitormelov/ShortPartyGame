@@ -1,8 +1,10 @@
-﻿import { ARENA_H, HUD_H, SCREEN_H, SCREEN_W } from '@shared/arena';
+import { ARENA_H, HUD_H, SCREEN_H, SCREEN_W } from '@shared/arena';
 import { NOTIFICATION_TIME, type FeedSnapshot } from '@shared/feed';
 import { CHARACTERS, type PlayerId } from '@shared/types';
-import { PAL, outlinedText, panel, portrait, text } from '../core/draw';
-import { drawSocialOverlay, drawTopHud } from '../feed/hud';
+import { drawCharacter } from '../core/cast';
+import { trackFor } from '../core/music';
+import { PAL, RES, outlinedText, panel, text } from '../core/draw';
+import { FakeComments, drawProgressBar, drawSocialOverlay, drawTopHud } from '../feed/hud';
 import { drawComments, drawHaterPanel } from '../feed/haters';
 import { CLIP_COLORS, RENDERERS } from '../minigames';
 import type { Transport } from '../net/transport';
@@ -34,6 +36,37 @@ const NOTIFICATIONS: Array<[string, string]> = [
   ['BATERIA EM 1%', 'CARREGUE JÁ'],
 ];
 
+/** Every death has a first and last name (style guide, "Tom de voz"). */
+const DEATH_LINES: Record<string, string> = {
+  kart: 'SAIU DA TRETA',
+  penguin: 'FOI CANCELADO',
+  tank: 'LEVOU RATIO',
+  lantern: 'TOMOU SHADOWBAN',
+  book: 'ACEITOU SEM LER',
+  dance: 'CRINGE',
+  filter: 'FILTRO ERRADO',
+  ad: 'CAIU NO GOLPE',
+  memoDo: 'CAIU NO GOLPE',
+  bomb: 'EXPLODIU AO VIVO',
+  meteor: 'CAIU DO CÉU',
+  laser: 'CORTADO DA EDIÇÃO',
+  elevator: 'NÃO SUBIU',
+  beam: 'SAIU DO AR',
+  mimic: 'NÃO FEZ A TREND',
+  bubble: 'ESTOUROU A BOLHA',
+  count: 'ERROU A CONTA',
+  rope: 'QUEIMOU O FILME',
+  look: 'OLHOU ERRADO',
+  paddle: 'LEVOU GOL',
+  duel: 'PERDEU O X1',
+};
+
+const HITSTOP = 0.05;
+const SHAKE_TIME = 0.18;
+
+/** What the fake viewers say when someone dies right after a return. */
+const REACT_RETURN = ['VOLTA O CLIPE', 'ESQUECEU KKKK', 'MEMÓRIA DE PEIXE', 'NEM LEMBRAVA'];
+
 const speedLabel = (s: number) => `${String(s).replace('.', ',')}x`;
 
 const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
@@ -44,8 +77,16 @@ export class GameScreen implements Screen {
   private banners: Banner[] = [];
   private popups: Popup[] = [];
   private shake = 0;
+  /** Hitstop: the whole game freezes for 3 frames when someone dies. */
+  private hitstop = 0;
   private overTime = 0;
   private heatAnnounced = false;
+  private comments = new FakeComments();
+  private sinceDeath = 99;
+  /** Last place each player was seen alive in the current clip, for the death lines. */
+  private lastPos = new Map<PlayerId, [number, number]>();
+  private deathLines: Popup[] = [];
+  private clipDeaths = 0;
   private snap: FeedSnapshot;
 
   constructor(private app: App, private transport: Transport) {
@@ -58,6 +99,30 @@ export class GameScreen implements Screen {
 
   private name(id: PlayerId): string {
     return this.snap.players.find((p) => p.info.id === id)?.info.name ?? '?';
+  }
+
+  /** Each clip has its own song, frozen and resumed with it; the swipe cuts it dead. */
+  private updateMusic(): void {
+    const m = this.app.music;
+    const snap = this.snap;
+    const clip = snap.clip;
+    const playing = clip && (snap.phase === 'play' || snap.phase === 'preview');
+    const track = playing ? trackFor(clip.defId) : null;
+    if (snap.phase === 'over' || !clip || !track) {
+      m.tension = 0;
+      if (snap.phase === 'over') m.play('theme', 'menu');
+      else m.stop();
+      return;
+    }
+    m.rate = clip.speed;
+    m.heat = snap.heat;
+    m.tension = snap.phase === 'play' ? Math.max(0, (snap.clipTime / snap.clipDuration - 0.7) / 0.3) : 0;
+    m.setMuffled(snap.haters.some((h) => h.id === this.localId));
+    m.play(track, `clip${clip.instanceId}`);
+  }
+
+  private charOf(id: PlayerId): number {
+    return this.snap.players.find((p) => p.info.id === id)?.info.character ?? 0;
   }
 
   private lifePopup(id: PlayerId): void {
@@ -73,7 +138,8 @@ export class GameScreen implements Screen {
   update(dt: number): void {
     this.t += dt;
     this.transport.sendInput(this.app.input.playerInput());
-    this.transport.update(dt);
+    if (this.hitstop > 0) this.hitstop -= dt;
+    else this.transport.update(dt);
     this.snap = this.transport.snapshot();
 
     if (!this.heatAnnounced && this.snap.heat > 0) {
@@ -86,11 +152,13 @@ export class GameScreen implements Screen {
       switch (e.type) {
         case 'swipe':
           this.app.sfx.play('swipe');
+          this.clipDeaths = 0;
           break;
-        case 'clipStart':
+        case 'clipStart': {
           this.app.sfx.play(e.isReturn ? 'return' : 'go');
           if (e.speed > 1) this.app.sfx.play('fastforward');
           break;
+        }
         case 'countdown':
           this.app.sfx.play('tick');
           break;
@@ -99,9 +167,22 @@ export class GameScreen implements Screen {
           break;
         case 'lifeLost': {
           this.flashes.set(e.player, 0.8);
+          this.sinceDeath = 0;
+          this.hitstop = HITSTOP;
+          this.app.music.duck();
+          {
+            const def = this.snap.clip?.defId ?? '';
+            const at = this.lastPos.get(e.player);
+            const line = DEATH_LINES[def];
+            if (line) this.deathLines.push({ text: line, x: at ? at[0] : SCREEN_W / 2, y: at ? at[1] + HUD_H - 16 : HUD_H + ARENA_H / 2, color: CHARACTERS[this.charOf(e.player)].color, t: 0 });
+          }
+          this.app.sfx.play('like');
+          if (this.snap.clip?.defId === 'paddle') this.shake = SHAKE_TIME;
+          this.clipDeaths++;
+          this.comments.react(e.onReturn ? REACT_RETURN[this.clipDeaths % REACT_RETURN.length] : `KKKKKK O ${CHARACTERS[this.charOf(e.player)].name}`, CHARACTERS[(e.player + 3) % CHARACTERS.length].color);
           const mine = e.player === this.localId;
           if (mine) {
-            this.shake = 0.35;
+            this.shake = SHAKE_TIME;
             this.app.sfx.play('lifeLost');
           }
           this.popups.push({ text: e.onReturn ? 'FLOP!' : '-1', x: this.chipX(e.player) + 4, y: 14, color: e.onReturn ? PAL.pink : PAL.red, t: 0 });
@@ -128,6 +209,7 @@ export class GameScreen implements Screen {
           break;
         case 'sfx':
           this.app.sfx.play(e.name);
+          if (e.name === 'explosion' || e.name === 'slam') this.shake = SHAKE_TIME;
           break;
         case 'pollResult':
           // The poll screen shows the outcome itself; just pop the hearts for gifts.
@@ -150,20 +232,33 @@ export class GameScreen implements Screen {
           this.flashes.set(e.player, 0.6);
           this.popups.push({ text: 'SALVO!', x: this.chipX(e.player) + 2, y: 14, color: PAL.cyan, t: 0 });
           break;
-        case 'gameOver':
+        case 'gameOver': {
           this.app.sfx.play('win');
+          const w = this.snap.players.find((p) => p.info.id === e.winners[0]);
+          if (w) setTimeout(() => this.app.sfx.voice(w.info.character, 8), 900);
           break;
+        }
       }
     }
 
     for (const [id, v] of this.flashes) this.flashes.set(id, v - dt);
     this.popups.forEach((p) => (p.t += dt));
+    this.deathLines.forEach((p) => (p.t += dt));
+    this.deathLines = this.deathLines.filter((p) => p.t < 1.3);
+    const clipNow = this.snap.clip;
+    if (clipNow && (this.snap.phase === 'play' || this.snap.phase === 'preview')) {
+      for (const [id, x, y] of RENDERERS[clipNow.defId]?.positions?.(clipNow.state) ?? []) this.lastPos.set(id, [x, y]);
+    }
+    if (this.snap.phase === 'swipe') this.lastPos.clear();
     this.popups = this.popups.filter((p) => p.t < 1);
     if (this.banners.length) {
       this.banners[0].t += dt;
       if (this.banners[0].t > 1.6) this.banners.shift();
     }
     this.shake = Math.max(0, this.shake - dt);
+    this.sinceDeath += dt;
+    this.updateMusic();
+    this.comments.update(dt, this.snap.phase === 'play' && this.snap.clip?.defId !== 'duel');
 
     if (this.snap.phase === 'over') {
       this.overTime += dt;
@@ -177,7 +272,8 @@ export class GameScreen implements Screen {
   private renderClip(ctx: CanvasRenderingContext2D, defId: string, state: unknown, offsetY: number): void {
     const renderer = RENDERERS[defId];
     if (!renderer) return;
-    const sx = this.shake > 0 ? Math.round((Math.random() - 0.5) * 6) : 0;
+    // Never more than 2px, so it doesn't get tiring.
+    const sx = this.shake > 0 ? Math.round((Math.random() - 0.5) * 4) : 0;
     const sy = this.shake > 0 ? Math.round((Math.random() - 0.5) * 4) : 0;
     ctx.save();
     ctx.beginPath();
@@ -211,7 +307,10 @@ export class GameScreen implements Screen {
 
     const amHater = snap.haters.some((h) => h.id === this.localId);
     // The X1 needs the whole screen (Pong paddles live at the edges).
-    if (clip && snap.phase !== 'swipe' && snap.phase !== 'over' && !amHater && clip.defId !== 'duel') drawSocialOverlay(ctx, snap, this.t);
+    if (clip && snap.phase !== 'swipe' && snap.phase !== 'over' && !amHater && clip.defId !== 'duel') {
+      drawSocialOverlay(ctx, snap, this.t, { sinceDeath: this.sinceDeath, bonus: this.clipDeaths });
+      if (snap.phase === 'play') this.comments.render(ctx);
+    }
     if (clip && snap.phase === 'play' && snap.comments.length) {
       drawComments(ctx, snap, RENDERERS[clip.defId]?.positions?.(clip.state) ?? [], this.t);
     }
@@ -235,6 +334,16 @@ export class GameScreen implements Screen {
     }
 
     drawTopHud(ctx, snap, this.localId, this.flashes, this.t);
+    if (clip && clip.defId !== 'duel') drawProgressBar(ctx, snap, this.t);
+
+    for (const d of this.deathLines) {
+      const k = Math.min(1, d.t / 0.12);
+      ctx.globalAlpha = d.t > 1 ? (1.3 - d.t) / 0.3 : 1;
+      const w = d.text.length * 8;
+      const x = Math.max(4 + w / 2, Math.min(SCREEN_W - 4 - w / 2, d.x));
+      outlinedText(ctx, d.text, x, d.y - d.t * 8 - (1 - k) * 6, Math.floor(d.t * 10) % 2 && d.t < 0.4 ? PAL.white : d.color, 8);
+      ctx.globalAlpha = 1;
+    }
 
     for (const p of this.popups) {
       outlinedText(ctx, p.text, p.x, p.y + p.t * 10, p.color, 8, 'left');
@@ -243,6 +352,7 @@ export class GameScreen implements Screen {
     const me = snap.players.find((p) => p.info.id === this.localId);
     const myHater = snap.haters.find((h) => h.id === this.localId);
     if (me?.eliminated && myHater && snap.phase !== 'over') drawHaterPanel(ctx, snap, myHater, this.t);
+
 
     if (this.banners.length && snap.phase !== 'over') {
       const b = this.banners[0];
@@ -269,19 +379,20 @@ export class GameScreen implements Screen {
     if (!pos || !star) return;
     if (!this.spotCanvas) {
       this.spotCanvas = document.createElement('canvas');
-      this.spotCanvas.width = SCREEN_W;
-      this.spotCanvas.height = ARENA_H;
+      this.spotCanvas.width = SCREEN_W * RES;
+      this.spotCanvas.height = ARENA_H * RES;
     }
     const dk = this.spotCanvas.getContext('2d')!;
+    dk.setTransform(RES, 0, 0, RES, 0, 0);
     dk.globalCompositeOperation = 'source-over';
     dk.clearRect(0, 0, SCREEN_W, ARENA_H);
-    dk.fillStyle = 'rgba(4,2,10,0.9)';
+    dk.fillStyle = 'rgba(16,6,36,0.9)';
     dk.fillRect(0, 0, SCREEN_W, ARENA_H);
     dk.globalCompositeOperation = 'destination-out';
     const hole = (x: number, y: number, r: number) => {
       const g = dk.createRadialGradient(x, y, r * 0.5, x, y, r);
-      g.addColorStop(0, 'rgba(0,0,0,1)');
-      g.addColorStop(1, 'rgba(0,0,0,0)');
+      g.addColorStop(0, 'rgba(20,6,46,1)');
+      g.addColorStop(1, 'rgba(20,6,46,0)');
       dk.fillStyle = g;
       dk.beginPath();
       dk.arc(x, y, r, 0, Math.PI * 2);
@@ -290,7 +401,7 @@ export class GameScreen implements Screen {
     hole(star[1], star[2], 48);
     const me = pos.find((p) => p[0] === this.localId);
     if (me && me[0] !== star[0]) hole(me[1], me[2], 16);
-    ctx.drawImage(this.spotCanvas, 0, HUD_H);
+    ctx.drawImage(this.spotCanvas, 0, HUD_H, SCREEN_W, ARENA_H);
     // The beam of light coming from above, and a star over the famous one.
     const sx = star[1];
     const sy = star[2] + HUD_H;
@@ -369,10 +480,10 @@ export class GameScreen implements Screen {
   private returnCard(ctx: CanvasRenderingContext2D): void {
     ctx.fillStyle = 'rgba(255,59,92,0.18)';
     ctx.fillRect(0, HUD_H, SCREEN_W, ARENA_H);
-    // Kept small and at the top: the player needs to see the frozen frame, not the label.
+    // Kept small and at the bottom: the player needs to see the frozen frame, not the label.
     ctx.fillStyle = 'rgba(10,6,20,0.8)';
-    ctx.fillRect(0, HUD_H, SCREEN_W, 22);
-    outlinedText(ctx, 'VOLTOU! CONTINUA DE ONDE PAROU', SCREEN_W / 2, HUD_H + 7, Math.floor(this.t * 12) % 2 ? PAL.red : PAL.white, 8);
+    ctx.fillRect(0, SCREEN_H - 16, SCREEN_W, 16);
+    outlinedText(ctx, 'VOLTOU! CONTINUA DE ONDE PAROU', SCREEN_W / 2, SCREEN_H - 12, Math.floor(this.t * 12) % 2 ? PAL.red : PAL.white, 8);
   }
 
   private overCard(ctx: CanvasRenderingContext2D): void {
@@ -381,15 +492,19 @@ export class GameScreen implements Screen {
     ctx.fillRect(0, HUD_H, SCREEN_W, ARENA_H);
     outlinedText(ctx, 'FIM DO FEED', SCREEN_W / 2, 36, PAL.yellow, 16);
     const winners = snap.winners;
+    const frame = Math.floor(this.t * 3) % 2;
     winners.forEach((id, i) => {
       const p = snap.players.find((pp) => pp.info.id === id);
       if (!p) return;
-      const x = SCREEN_W / 2 - (winners.length * 56) / 2 + i * 56 + 12;
-      portrait(ctx, p.info.character, x, 70, 2);
-      text(ctx, p.info.name, x + 16, 108, CHARACTERS[p.info.character].color, 8, 'center');
+      const x = SCREEN_W / 2 - (winners.length * 64) / 2 + i * 64 + 32;
+      drawCharacter(ctx, p.info.character, x, 110, { size: 50, pose: 'win', frame, time: this.t });
+      text(ctx, p.info.name, x, 112, CHARACTERS[p.info.character].color, 8, 'center');
     });
     const mine = winners.includes(this.localId);
     outlinedText(ctx, mine ? 'VOCÊ VENCEU!' : winners.length > 1 ? 'EMPATE!' : 'VENCEU!', SCREEN_W / 2, 126, mine ? PAL.green : PAL.white, 16);
-    if (this.overTime > 2 && Math.floor(this.t * 2) % 2 === 0) text(ctx, 'ESPAÇO: RESULTADOS', SCREEN_W / 2, 170, PAL.white, 8, 'center');
+    // Everyone else, slumped.
+    const losers = snap.players.filter((p) => !winners.includes(p.info.id));
+    losers.forEach((p, i) => drawCharacter(ctx, p.info.character, SCREEN_W / 2 - (losers.length - 1) * 14 + i * 28, 176, { size: 22, pose: 'lose', time: this.t }));
+    if (this.overTime > 2 && Math.floor(this.t * 2) % 2 === 0) text(ctx, 'ESPAÇO: RESULTADOS', SCREEN_W / 2, 186, PAL.white, 8, 'center');
   }
 }

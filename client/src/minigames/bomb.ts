@@ -1,31 +1,13 @@
-﻿import { ARENA_H, ARENA_W } from '@shared/arena';
+import { ARENA_H, ARENA_W } from '@shared/arena';
 import { BRICK, COLS, PU_BOMB, PU_NONE, ROWS, WALL, type BPlayer, type BombState } from '@shared/minigames/bomb/logic';
-import { CHARACTERS, type PlayerId } from '@shared/types';
-import { PAL, sprite, text } from '../core/draw';
+import { type PlayerId } from '@shared/types';
+import { PAL, text } from '../core/draw';
 import { localMarker, type MinigameRenderer } from './renderer';
+import { drawCharacter } from '../core/cast';
 
 const T = 15;
 const OX = Math.floor((ARENA_W - COLS * T) / 2);
 const OY = Math.floor((ARENA_H - ROWS * T) / 2);
-
-const BOMBER = [
-  '...kkkkkk...',
-  '..kwwwwwwk..',
-  '.kwwwwwwwwk.',
-  '.kwkkkkkkwk.',
-  '.kwsbssbswk.',
-  '.kwsssssswk.',
-  '..kkkkkkkk..',
-  '.kcccccccck.',
-  'kwkccLLcckwk',
-  '.kkccccccKk.',
-  '..kKKKKKKk..',
-  '..kKk..kKk..',
-  '.kKKk..kKKk.',
-  '.kkkk..kkkk.',
-];
-
-const BOMBER_WALK = [...BOMBER.slice(0, 11), '..kKk.kKk...', '.kKKk.kKKk..', '.kkkk.kkkk..'];
 
 function drawTile(ctx: CanvasRenderingContext2D, kind: number, x: number, y: number): void {
   if (kind === WALL) {
@@ -82,37 +64,20 @@ function drawPowerup(ctx: CanvasRenderingContext2D, kind: number, x: number, y: 
 function drawPlayer(ctx: CanvasRenderingContext2D, p: BPlayer, time: number): void {
   if (p.status === 'out' || (p.status === 'dead' && p.deathAnim <= 0)) return;
   if (p.ghost > 0 && Math.floor(time * 16) % 2 === 0) return;
-  const ch = CHARACTERS[p.character];
   const px = OX + p.x * T - 6;
   const py = OY + p.y * T - 11;
   const dying = p.status === 'dead';
   const flash = dying && Math.floor(time * 20) % 2 === 0;
-  const back = p.facing === 1;
-  const colors: Record<string, string> = flash
-    ? { k: '#ffffff', w: '#ffffff', s: '#ffffff', b: '#ffffff', c: '#ffffff', L: '#ffffff', K: '#ffffff' }
-    : {
-        k: PAL.ink,
-        w: '#f4f0ff',
-        s: back ? '#f4f0ff' : '#ffc89a',
-        b: back ? '#f4f0ff' : PAL.ink,
-        c: ch.color,
-        L: ch.light,
-        K: ch.dark,
-      };
   const walking = p.walk > 0 && Math.floor(p.walk * 8) % 2 === 1;
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillStyle = 'rgba(20,6,46,0.3)';
   ctx.fillRect(Math.round(px + 2), Math.round(py + 12), 8, 3);
-  const rows = walking ? BOMBER_WALK : BOMBER;
+  const feet: [number, number] = [px + 6, py + 14];
   if (dying) {
     const s = p.deathAnim / 0.6;
-    ctx.save();
-    ctx.translate(Math.round(px + 6), Math.round(py + 14));
-    ctx.scale(1 + (1 - s) * 0.6, s);
-    sprite(ctx, rows, -6, -14, colors, 1, p.facing === 2);
-    ctx.restore();
+    drawCharacter(ctx, p.character, feet[0], feet[1], { flash, pose: 'lose', size: 15, sx: 1 + (1 - s) * 0.6, sy: Math.max(0.05, s) });
     return;
   }
-  sprite(ctx, rows, px, py, colors, 1, p.facing === 2);
+  drawCharacter(ctx, p.character, feet[0], feet[1], { size: 15, frame: walking ? 1 : 0, flip: p.facing === 2, time });
 }
 
 export const bombRenderer: MinigameRenderer = {
@@ -138,7 +103,7 @@ export const bombRenderer: MinigameRenderer = {
         drawTile(ctx, st.grid[i], x, y);
         // Shadow cast by the block above.
         if (st.grid[i] === 0 && r > 0 && st.grid[i - COLS] !== 0) {
-          ctx.fillStyle = 'rgba(0,0,0,0.25)';
+          ctx.fillStyle = 'rgba(20,6,46,0.25)';
           ctx.fillRect(x, y, T, 3);
         }
         if (st.grid[i] === 0 && st.powerups[i] !== PU_NONE) drawPowerup(ctx, st.powerups[i], x, y, time);
@@ -150,7 +115,7 @@ export const bombRenderer: MinigameRenderer = {
       const y = OY + b.r * T + T / 2;
       const pulse = Math.sin(time * (b.fuse < 0.8 ? 30 : 10)) > 0 ? 1 : 0;
       const rad = 5 + pulse;
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillStyle = 'rgba(20,6,46,0.3)';
       ctx.fillRect(Math.round(x - 4), Math.round(y + 4), 9, 3);
       ctx.fillStyle = b.fuse < 0.8 && pulse ? '#ff3b5c' : b.ad ? '#c8268a' : '#0a0614';
       ctx.beginPath();

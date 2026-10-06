@@ -1,11 +1,11 @@
 import { ARENA_H, ARENA_W } from '@shared/arena';
 import { DEATH_ANIM, HIT_WIN, TRAVEL, type DanceState, type Dancer, type Lane } from '@shared/minigames/dance/logic';
 import type { Dir } from '@shared/minigames/look/logic';
-import { CHARACTERS, type PlayerId } from '@shared/types';
-import { PAL, outlinedText, sprite, text } from '../core/draw';
+import { type PlayerId } from '@shared/types';
+import { BRAND, PAL, outlinedText, text } from '../core/draw';
 import { arrow } from './look';
-import { BLOB } from './meteor';
 import { hash, type MinigameRenderer } from './renderer';
+import { drawCharacter } from '../core/cast';
 
 const LANE_DIR: Dir[] = [3, 0, 2, 1]; // A W S D -> left up down right
 const LANE_COLOR = ['#ff5ac8', '#3ee8ff', '#5cf26a', '#ffd23e'];
@@ -20,7 +20,7 @@ function noteY(st: DanceState, t: number): number {
 }
 
 function drawStage(ctx: CanvasRenderingContext2D, st: DanceState): void {
-  ctx.fillStyle = '#100820';
+  ctx.fillStyle = BRAND.roxo;
   ctx.fillRect(0, 0, ARENA_W, ARENA_H);
   // Disco floor flashing on the beat.
   const beat = Math.floor(st.beat);
@@ -102,13 +102,11 @@ function drawHighway(ctx: CanvasRenderingContext2D, st: DanceState, me: Dancer |
 
 function drawDancer(ctx: CanvasRenderingContext2D, d: Dancer, x: number, y: number, st: DanceState, time: number, mine: boolean): void {
   if (d.status === 'out') return;
-  const ch = CHARACTERS[d.character];
-  const colors = { k: PAL.ink, c: ch.color, L: ch.light, K: ch.dark, w: '#ffffff' };
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillStyle = 'rgba(20,6,46,0.4)';
   ctx.fillRect(x - 8, y + 1, 16, 3);
   if (d.status === 'dead') {
     // Face-planted, dying of cringe.
-    sprite(ctx, BLOB, x - 10, y - 10, { ...colors, c: '#6a4a7a', L: '#8a6a9a', K: '#3a2a4a' }, 2);
+    drawCharacter(ctx, d.character, x, y + 2, { dead: true, pose: 'lose', size: 26, sx: 1.25, sy: 0.55 });
     ctx.fillStyle = '#3ee8ff';
     ctx.fillRect(x + 9, y - 16 + Math.floor((DEATH_ANIM - d.deathAnim) * 10) % 6, 2, 3);
     if (Math.floor(time * 6) % 2) text(ctx, 'CRINGE', x, y - 30, PAL.red, 8, 'center');
@@ -123,13 +121,16 @@ function drawDancer(ctx: CanvasRenderingContext2D, d: Dancer, x: number, y: numb
   const lean = posing === 0 ? -3 : posing === 3 ? 3 : 0;
   const bx = x - 10 + lean;
   const by = y - 20 - bounce + squat + (posing === 1 ? -4 : 0);
-  // Arms.
-  ctx.fillStyle = ch.dark;
-  const armL = posing === 0 || posing === 1 ? -8 : Math.floor(st.beat) % 2 ? -2 : 4;
-  const armR = posing === 3 || posing === 1 ? -8 : Math.floor(st.beat) % 2 ? 4 : -2;
-  ctx.fillRect(bx - 3, by + 10 + armL, 3, 6);
-  ctx.fillRect(bx + 20, by + 10 + armR, 3, 6);
-  sprite(ctx, BLOB, bx, by, colors, 2);
+  // Arms up on ↑, a squat on ↓, leaning on ← and →, and a two-step on the beat.
+  drawCharacter(ctx, d.character, x + lean, y - bounce + (posing === 1 ? -4 : 0), {
+    size: 26,
+    time,
+    pose: posing === 1 ? 'jump' : posing >= 0 ? 'win' : 'idle',
+    frame: Math.floor(st.beat) % 2,
+    flip: posing === 0,
+    sx: squat ? 1.15 : 1,
+    sy: squat ? 0.8 : bounce ? 1.06 : 1,
+  });
   if (d.judge === 'miss' && d.judgeT > 0) {
     ctx.fillStyle = '#3ee8ff';
     ctx.fillRect(bx + 18, by + 2, 2, 3);

@@ -1,9 +1,9 @@
-﻿import { ARENA_H, ARENA_W } from '@shared/arena';
+import { ARENA_H, ARENA_W } from '@shared/arena';
 import { DEATH_ANIM, FURNITURE, GLOW_R, LIGHT_HALF, LIGHT_LEN, ROOM, inLight, type LPlayer, type LanternState } from '@shared/minigames/lantern/logic';
-import { CHARACTERS, type PlayerId } from '@shared/types';
-import { PAL, sprite } from '../core/draw';
-import { BLOB } from './meteor';
+import { type PlayerId } from '@shared/types';
+import { PAL, RES, sprite } from '../core/draw';
 import { hash, localMarker, type MinigameRenderer } from './renderer';
+import { drawCharacter } from '../core/cast';
 
 const GHOST = [
   '....kkkk....',
@@ -25,10 +25,12 @@ let darkCanvas: HTMLCanvasElement | null = null;
 function darkLayer(): CanvasRenderingContext2D {
   if (!darkCanvas) {
     darkCanvas = document.createElement('canvas');
-    darkCanvas.width = ARENA_W;
-    darkCanvas.height = ARENA_H;
+    darkCanvas.width = ARENA_W * RES;
+    darkCanvas.height = ARENA_H * RES;
   }
-  return darkCanvas.getContext('2d')!;
+  const dk = darkCanvas.getContext('2d')!;
+  dk.setTransform(RES, 0, 0, RES, 0, 0);
+  return dk;
 }
 
 function lightOn(p: LPlayer, time: number): boolean {
@@ -72,7 +74,7 @@ function drawRoom(ctx: CanvasRenderingContext2D): void {
   ctx.fillRect(138, 125, 108, 1);
 
   FURNITURE.forEach(([x, y, w, h], i) => {
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillStyle = 'rgba(20,6,46,0.4)';
     ctx.fillRect(x + 2, y + h, w, 3);
     ctx.fillStyle = '#1a0e08';
     ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
@@ -99,23 +101,19 @@ function drawRoom(ctx: CanvasRenderingContext2D): void {
 function drawPlayer(ctx: CanvasRenderingContext2D, p: LPlayer, time: number): void {
   if (p.status === 'out' || (p.status === 'dead' && p.deathAnim <= 0)) return;
   if (p.ghost > 0 && Math.floor(time * 16) % 2 === 0) return;
-  const ch = CHARACTERS[p.character];
   const dead = p.status === 'dead';
   const flash = dead && Math.floor(time * 20) % 2 === 0;
-  const colors = flash
-    ? { k: '#ffffff', c: '#ff3b5c', L: '#ff3b5c', K: '#ff3b5c', w: '#ffffff' }
-    : { k: PAL.ink, c: ch.color, L: ch.light, K: ch.dark, w: '#ffffff' };
   const bob = p.walk > 0 && Math.floor(p.walk * 10) % 2 ? 1 : 0;
   if (dead) {
     const s = Math.max(0.1, p.deathAnim / DEATH_ANIM);
     ctx.save();
     ctx.translate(Math.round(p.x), Math.round(p.y));
     ctx.scale(s, s);
-    sprite(ctx, BLOB, -5, -8, colors);
+    drawCharacter(ctx, p.character, 0, 2, { flash, pose: 'lose', time });
     ctx.restore();
     return;
   }
-  sprite(ctx, BLOB, p.x - 5, p.y - 8 - bob, colors);
+  drawCharacter(ctx, p.character, p.x, p.y + 2, { frame: bob, flip: p.fx < 0, time });
   // the flashlight itself
   ctx.fillStyle = '#c8c4e8';
   ctx.fillRect(Math.round(p.x + p.fx * 5) - 1, Math.round(p.y + p.fy * 5) - 1, 2, 2);
@@ -136,29 +134,29 @@ export const lanternRenderer: MinigameRenderer = {
     const dk = darkLayer();
     dk.globalCompositeOperation = 'source-over';
     dk.clearRect(0, 0, ARENA_W, ARENA_H);
-    dk.fillStyle = 'rgba(4,2,10,0.97)';
+    dk.fillStyle = 'rgba(16,6,36,0.97)';
     dk.fillRect(0, 0, ARENA_W, ARENA_H);
     dk.globalCompositeOperation = 'destination-out';
     for (const p of st.players) {
       if (p.status === 'out' || (p.status === 'dead' && p.deathAnim <= 0)) continue;
       const glow = dk.createRadialGradient(p.x, p.y, 2, p.x, p.y, GLOW_R);
-      glow.addColorStop(0, 'rgba(0,0,0,0.9)');
-      glow.addColorStop(1, 'rgba(0,0,0,0)');
+      glow.addColorStop(0, 'rgba(20,6,46,0.9)');
+      glow.addColorStop(1, 'rgba(20,6,46,0)');
       dk.fillStyle = glow;
       dk.beginPath();
       dk.arc(p.x, p.y, GLOW_R, 0, Math.PI * 2);
       dk.fill();
       if (lightOn(p, time)) {
         const g = dk.createRadialGradient(p.x, p.y, 4, p.x, p.y, LIGHT_LEN);
-        g.addColorStop(0, 'rgba(0,0,0,1)');
-        g.addColorStop(0.7, 'rgba(0,0,0,0.85)');
-        g.addColorStop(1, 'rgba(0,0,0,0)');
+        g.addColorStop(0, 'rgba(20,6,46,1)');
+        g.addColorStop(0.7, 'rgba(20,6,46,0.85)');
+        g.addColorStop(1, 'rgba(20,6,46,0)');
         dk.fillStyle = g;
         conePath(dk, p);
         dk.fill();
       }
     }
-    ctx.drawImage(darkCanvas!, 0, 0);
+    ctx.drawImage(darkCanvas!, 0, 0, ARENA_W, ARENA_H);
 
     // Warm tint inside the cones.
     ctx.save();

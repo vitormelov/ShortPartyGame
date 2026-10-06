@@ -1,74 +1,63 @@
-﻿import { angleDiff, type Minigame, type MinigameDef } from '../../minigame';
+import { ARENA_H, ARENA_W } from '../../arena';
+import { angleDiff, type Minigame, type MinigameDef } from '../../minigame';
 import { Rng } from '../../rng';
 import type { BotDifficulty, GameEvent, PlayerId, PlayerInfo, PlayerInput, TickInput } from '../../types';
 import { NEUTRAL_INPUT } from '../../types';
 
 /**
- * FLAME WAR: top-down tanks, free for all. Tank controls: W forward, S reverse, A/D rotate the
- * tank (the cannon points where the hull points). Space fires. Shells ricochet once off walls,
- * so you can bank shots — or hit yourself.
- * Crates break and sometimes drop power-ups.
+ * FLAME WAR: top-down spaceships, free for all, in an asteroid field. Tank controls: W forward,
+ * S reverse, A/D rotate the ship (the gun points where the nose points). Space fires a laser.
+ * Lasers stop at the first asteroid, so the rocks are cover. Two hits to go down.
  */
 
-export const CELL = 12;
-export const COLS = 32;
-export const ROWS = 17;
-export const EMPTY = 0;
-export const STEEL = 1;
-export const CRATE = 2;
-
-export const TANK_R = 5;
-const SPEED = 54;
-const REVERSE = 0.65; // reverse is slower than forward
-const TURN_SPEED = 2.8; // rad/s
-export const SHELL_SPEED = 110;
-const SHELL_R = 1.5;
-const FIRE_COOLDOWN = 0.9;
-const MAX_SHELLS = 2;
-const SELF_GRACE = 0.15; // a fresh shell can't hit its own tank right at the muzzle
-export const POWER_TIME = 8;
-const GHOST_TIME = 1.2;
+export const SHIP_R = 5;
+const SPEED = 58;
+const REVERSE = 0.6; // reverse thrusters are weaker
+const TURN_SPEED = 3; // rad/s
+export const SHOT_SPEED = 140;
+const SHOT_R = 1.5;
+const FIRE_COOLDOWN = 0.8;
+const MAX_SHOTS = 2;
+const MARGIN = 4; // ships stay this far inside the screen edges
 export const MAX_HP = 2;
 const HIT_GRACE = 0.35; // brief invulnerability after taking a hit
+const GHOST_TIME = 1.2;
 export const DEATH_ANIM = 0.6;
 const TIME_CAP = 50;
 
-export type PowerKind = 'triple' | 'bounce' | 'shield';
-
-export interface Tank {
+export interface Ship {
   id: PlayerId;
   character: number;
   x: number;
   y: number;
-  angle: number; // hull/cannon heading in radians (screen coords: 0 = right, PI/2 = down)
+  angle: number; // nose heading in radians (screen coords: 0 = right, PI/2 = down)
   cooldown: number;
-  triple: number; // power-up timers
-  bounce: number;
-  shield: boolean;
   hp: number;
   hitT: number; // > 0 right after being hit (flash + grace)
   status: 'alive' | 'dead' | 'out';
   ghost: number;
   deathAnim: number;
-  moving: boolean;
-  tread: number;
+  /** -1 reverse, 0 coasting, 1 thrusting (for the engine flame). */
+  thrust: -1 | 0 | 1;
 }
 
-export interface Shell {
+export interface Shot {
   id: number;
   owner: PlayerId;
   x: number;
   y: number;
   vx: number;
   vy: number;
-  bounces: number; // ricochets left
   age: number;
 }
 
-export interface PowerUp {
-  c: number;
+export interface Asteroid {
+  id: number;
+  x: number;
+  y: number;
   r: number;
-  kind: PowerKind;
+  /** Seed for the rock's outline and craters (drawing only). */
+  seed: number;
 }
 
 export interface Boom {
@@ -78,48 +67,35 @@ export interface Boom {
   big: boolean;
 }
 
-export interface TankState {
-  grid: number[];
-  tanks: Tank[];
-  shells: Shell[];
-  powerups: PowerUp[];
+export interface ShipState {
+  ships: Ship[];
+  shots: Shot[];
+  asteroids: Asteroid[];
   booms: Boom[];
   time: number;
   nextId: number;
 }
 
-const idx = (c: number, r: number) => r * COLS + c;
-
-/** Symmetric fixed layout: '#' steel, '.' floor, '?' possible crate. Mirrored left/right. */
-const HALF_LAYOUT = [
-  '################',
-  '#...............',
-  '#.....??....##..',
-  '#..##.??........',
-  '#..#.......?....',
-  '#......##..?....',
-  '#.??...##.....??',
-  '#.??...........?',
-  '#.......###.....',
-  '#.??...........?',
-  '#.??...##.....??',
-  '#......##..?....',
-  '#..#.......?....',
-  '#..##.??........',
-  '#.....??....##..',
-  '#...............',
-  '################',
+/** Left half of a symmetric asteroid field (mirrored left/right); x, y, radius. */
+const HALF_FIELD: ReadonlyArray<readonly [number, number, number]> = [
+  [ARENA_W / 2, ARENA_H / 2, 19],
+  [104, 52, 14],
+  [104, 152, 14],
+  [50, 102, 10],
+  [ARENA_W / 2, 26, 9],
+  [ARENA_W / 2, ARENA_H - 26, 9],
+  [150, 96, 6],
 ];
 
 const SPAWNS: ReadonlyArray<readonly [number, number]> = [
-  [2, 1],
-  [29, 15],
-  [29, 1],
-  [2, 15],
-  [15, 2],
-  [16, 14],
-  [5, 8],
-  [26, 8],
+  [24, 20],
+  [ARENA_W - 24, ARENA_H - 20],
+  [ARENA_W - 24, 20],
+  [24, ARENA_H - 20],
+  [150, 40],
+  [ARENA_W - 150, ARENA_H - 40],
+  [ARENA_W - 150, 40],
+  [150, ARENA_H - 40],
 ];
 
 /** Bots "think" every so often (goal heading, drive, fire) and steer toward it every tick. */
@@ -127,7 +103,7 @@ interface BotMemory {
   timer: number;
   heading: number;
   move: -1 | 0 | 1; // forward / stop / reverse
-  fire: boolean; // fire once the hull lines up with heading
+  fire: boolean; // fire once the nose lines up with heading
   wander: number;
 }
 
@@ -135,71 +111,58 @@ const BOT_CADENCE: Record<BotDifficulty, number> = { easy: 0.25, medium: 0.12, h
 const BOT_FIRE: Record<BotDifficulty, number> = { easy: 0.08, medium: 0.14, hard: 0.2 };
 /** Random aim error (radians), human-like imprecision. */
 const BOT_MISAIM: Record<BotDifficulty, number> = { easy: 0.3, medium: 0.18, hard: 0.08 };
-/** How well lined up the hull must be before the bot fires. */
+/** How well lined up the nose must be before the bot fires. */
 const BOT_FIRE_TOL: Record<BotDifficulty, number> = { easy: 0.14, medium: 0.09, hard: 0.05 };
-const KEEP_DISTANCE = 70;
+const KEEP_DISTANCE = 80;
 
-class FlameWar implements Minigame<TankState> {
+class FlameWar implements Minigame<ShipState> {
   readonly defId = 'tank';
-  readonly state: TankState;
+  readonly state: ShipState;
   private events: GameEvent[] = [];
   private rng: Rng;
   private botMem = new Map<PlayerId, BotMemory>();
 
   constructor(players: PlayerInfo[], seed: number) {
     this.rng = new Rng(seed);
-    const grid: number[] = [];
-    for (let r = 0; r < ROWS; r++) {
-      const half = HALF_LAYOUT[r];
-      const row = half + half.split('').reverse().join('');
-      for (let c = 0; c < COLS; c++) {
-        const ch = row[c];
-        grid.push(ch === '#' ? STEEL : ch === '?' && this.rng.next() < 0.75 ? CRATE : EMPTY);
-      }
+    const asteroids: Asteroid[] = [];
+    let id = 1;
+    for (const [x, y, r] of HALF_FIELD) {
+      // A little jitter so every field is different, but it stays symmetric (fair).
+      const jx = this.rng.range(-5, 5);
+      const jy = this.rng.range(-5, 5);
+      const rr = r + this.rng.range(-1.5, 1.5);
+      const center = Math.abs(x - ARENA_W / 2) < 1;
+      asteroids.push({ id: id++, x: center ? x : x + jx, y: y + jy, r: rr, seed: this.rng.int(1e6) });
+      if (!center) asteroids.push({ id: id++, x: ARENA_W - x - jx, y: y + jy, r: rr, seed: this.rng.int(1e6) });
     }
-    for (const [c, r] of SPAWNS) grid[idx(c, r)] = EMPTY;
-    this.state = {
-      grid,
-      tanks: players.map((p, i) => {
-        const [c, r] = SPAWNS[i % SPAWNS.length];
-        const x = (c + 0.5) * CELL;
-        return {
-          id: p.id,
-          character: p.character,
-          x,
-          y: (r + 0.5) * CELL,
-          angle: x < (COLS * CELL) / 2 ? 0 : Math.PI,
-          cooldown: 0.5,
-          triple: 0,
-          bounce: 0,
-          shield: false,
-          hp: MAX_HP,
-          hitT: 0,
-          status: 'alive',
-          ghost: 0,
-          deathAnim: 0,
-          moving: false,
-          tread: 0,
-        };
-      }),
-      shells: [],
-      powerups: [],
-      booms: [],
-      time: 0,
-      nextId: 1,
-    };
+    this.state = { ships: [], shots: [], asteroids, booms: [], time: 0, nextId: 1 };
+    this.state.ships = players.map((p, i) => {
+      const [sx, sy] = SPAWNS[i % SPAWNS.length];
+      const spot = this.blocked(sx, sy) ? this.findSpot(null) : { x: sx, y: sy };
+      return {
+        id: p.id,
+        character: p.character,
+        x: spot.x,
+        y: spot.y,
+        angle: spot.x < ARENA_W / 2 ? 0 : Math.PI,
+        cooldown: 0.5,
+        hp: MAX_HP,
+        hitT: 0,
+        status: 'alive',
+        ghost: 0,
+        deathAnim: 0,
+        thrust: 0,
+      };
+    });
   }
 
-  private solidAt(x: number, y: number): boolean {
-    const c = Math.floor(x / CELL);
-    const r = Math.floor(y / CELL);
-    if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return true;
-    return this.state.grid[idx(c, r)] !== EMPTY;
+  private rockAt(x: number, y: number, pad: number): Asteroid | undefined {
+    return this.state.asteroids.find((a) => Math.hypot(a.x - x, a.y - y) < a.r + pad);
   }
 
-  private tankBlocked(x: number, y: number): boolean {
-    const m = TANK_R - 0.5;
-    return this.solidAt(x - m, y - m) || this.solidAt(x + m, y - m) || this.solidAt(x - m, y + m) || this.solidAt(x + m, y + m);
+  private blocked(x: number, y: number): boolean {
+    if (x < MARGIN + SHIP_R || y < MARGIN + SHIP_R || x > ARENA_W - MARGIN - SHIP_R || y > ARENA_H - MARGIN - SHIP_R) return true;
+    return this.rockAt(x, y, SHIP_R) !== undefined;
   }
 
   update(dt: number, inputs: Map<PlayerId, TickInput>, heat: number): void {
@@ -208,175 +171,133 @@ class FlameWar implements Minigame<TankState> {
     for (const b of st.booms) b.t += dt;
     st.booms = st.booms.filter((b) => b.t < 0.5);
 
-    for (const t of st.tanks) {
-      if (t.status === 'dead') t.deathAnim = Math.max(0, t.deathAnim - dt);
-      if (t.status !== 'alive') continue;
-      t.ghost = Math.max(0, t.ghost - dt);
-      t.hitT = Math.max(0, t.hitT - dt);
-      t.cooldown = Math.max(0, t.cooldown - dt);
-      t.triple = Math.max(0, t.triple - dt);
-      t.bounce = Math.max(0, t.bounce - dt);
-      const inp = inputs.get(t.id);
+    for (const s of st.ships) {
+      if (s.status === 'dead') s.deathAnim = Math.max(0, s.deathAnim - dt);
+      if (s.status !== 'alive') continue;
+      s.ghost = Math.max(0, s.ghost - dt);
+      s.hitT = Math.max(0, s.hitT - dt);
+      s.cooldown = Math.max(0, s.cooldown - dt);
+      const inp = inputs.get(s.id);
       // Tank controls: A/D rotate, W forward, S reverse.
       const turn = inp?.dx ?? 0;
       const drive = inp?.dy ? (inp.dy < 0 ? 1 : -REVERSE) : 0;
-      t.angle += turn * TURN_SPEED * dt;
-      t.moving = drive !== 0 || turn !== 0;
+      s.angle += turn * TURN_SPEED * dt;
+      s.thrust = drive > 0 ? 1 : drive < 0 ? -1 : 0;
       if (drive !== 0) {
-        const nx = t.x + Math.cos(t.angle) * SPEED * drive * dt;
-        const ny = t.y + Math.sin(t.angle) * SPEED * drive * dt;
-        if (!this.tankBlocked(nx, t.y)) t.x = nx;
-        if (!this.tankBlocked(t.x, ny)) t.y = ny;
+        const nx = s.x + Math.cos(s.angle) * SPEED * drive * dt;
+        const ny = s.y + Math.sin(s.angle) * SPEED * drive * dt;
+        if (!this.blocked(nx, s.y)) s.x = nx;
+        if (!this.blocked(s.x, ny)) s.y = ny;
       }
-      if (t.moving) t.tread += dt * (drive < 0 ? -1 : 1);
-      // Power-up pickup.
-      const c = Math.floor(t.x / CELL);
-      const r = Math.floor(t.y / CELL);
-      const pu = st.powerups.find((p) => p.c === c && p.r === r);
-      if (pu) {
-        if (pu.kind === 'triple') t.triple = POWER_TIME;
-        else if (pu.kind === 'bounce') t.bounce = POWER_TIME;
-        else t.shield = true;
-        st.powerups = st.powerups.filter((p) => p !== pu);
-        this.events.push({ type: 'sfx', name: 'powerup' });
-      }
-      if (inp?.pressed) this.fire(t, heat);
+      if (inp?.pressed) this.fire(s, heat);
     }
 
-    this.moveShells(dt);
+    this.moveShots(dt);
   }
 
-  private fire(t: Tank, heat: number): void {
+  private fire(s: Ship, heat: number): void {
     const st = this.state;
-    if (t.cooldown > 0 || st.shells.filter((s) => s.owner === t.id).length >= MAX_SHELLS) return;
-    t.cooldown = FIRE_COOLDOWN;
-    const angles = t.triple > 0 ? [-0.25, 0, 0.25] : [0];
-    const speed = SHELL_SPEED * (1 + heat * 0.3);
-    for (const da of angles) {
-      const a = t.angle + da;
-      const mx = t.x + Math.cos(a) * (TANK_R + 3);
-      const my = t.y + Math.sin(a) * (TANK_R + 3);
-      if (this.solidAt(mx, my)) continue; // barrel against a wall
-      st.shells.push({ id: st.nextId++, owner: t.id, x: mx, y: my, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, bounces: t.bounce > 0 ? 3 : 1, age: 0 });
-    }
-    this.events.push({ type: 'sfx', name: 'cannon' });
+    if (s.cooldown > 0 || st.shots.filter((o) => o.owner === s.id).length >= MAX_SHOTS) return;
+    s.cooldown = FIRE_COOLDOWN;
+    const mx = s.x + Math.cos(s.angle) * (SHIP_R + 3);
+    const my = s.y + Math.sin(s.angle) * (SHIP_R + 3);
+    if (this.rockAt(mx, my, 0)) return; // nose against a rock
+    const speed = SHOT_SPEED * (1 + heat * 0.3);
+    st.shots.push({ id: st.nextId++, owner: s.id, x: mx, y: my, vx: Math.cos(s.angle) * speed, vy: Math.sin(s.angle) * speed, age: 0 });
+    this.events.push({ type: 'sfx', name: 'pew' });
   }
 
-  private moveShells(dt: number): void {
+  private moveShots(dt: number): void {
     const st = this.state;
-    const dead = new Set<Shell>();
-    for (const s of st.shells) {
-      s.age += dt;
-      // Substeps so fast shells can't tunnel through a cell.
-      const steps = Math.ceil((Math.hypot(s.vx, s.vy) * dt) / 4);
-      for (let k = 0; k < steps && !dead.has(s); k++) {
-        const ox = s.x;
-        const oy = s.y;
-        const nx = s.x + (s.vx * dt) / steps;
-        const ny = s.y + (s.vy * dt) / steps;
-        if (this.solidAt(nx, ny)) {
-          const c = Math.floor(nx / CELL);
-          const r = Math.floor(ny / CELL);
-          if (c >= 0 && r >= 0 && c < COLS && r < ROWS && st.grid[idx(c, r)] === CRATE) {
-            this.breakCrate(c, r);
-            dead.add(s);
-            break;
-          }
-          if (s.bounces <= 0) {
-            dead.add(s);
-            st.booms.push({ x: ox, y: oy, t: 0, big: false });
-            break;
-          }
-          s.bounces--;
-          const hitX = this.solidAt(nx, oy);
-          const hitY = this.solidAt(ox, ny);
-          if (hitX || !hitY) s.vx = -s.vx;
-          if (hitY || !hitX) s.vy = -s.vy;
-          this.events.push({ type: 'sfx', name: 'ricochet' });
-          continue;
+    const dead = new Set<Shot>();
+    for (const o of st.shots) {
+      o.age += dt;
+      // Substeps so fast lasers can't skip past a small rock or ship.
+      const steps = Math.ceil((Math.hypot(o.vx, o.vy) * dt) / 3);
+      for (let k = 0; k < steps && !dead.has(o); k++) {
+        o.x += (o.vx * dt) / steps;
+        o.y += (o.vy * dt) / steps;
+        if (o.x < 0 || o.y < 0 || o.x > ARENA_W || o.y > ARENA_H) {
+          dead.add(o);
+          break;
         }
-        s.x = nx;
-        s.y = ny;
-        // Tanks.
-        for (const t of st.tanks) {
-          if (t.status !== 'alive' || t.ghost > 0 || t.hitT > 0) continue;
-          if (t.id === s.owner && s.age < SELF_GRACE) continue;
-          if (Math.hypot(t.x - s.x, t.y - s.y) > TANK_R + SHELL_R) continue;
-          dead.add(s);
-          if (t.shield) {
-            t.shield = false;
-            this.events.push({ type: 'sfx', name: 'bump' });
-          } else if (--t.hp > 0) {
-            t.hitT = HIT_GRACE;
-            st.booms.push({ x: s.x, y: s.y, t: 0, big: false });
+        if (this.rockAt(o.x, o.y, SHOT_R)) {
+          dead.add(o);
+          st.booms.push({ x: o.x, y: o.y, t: 0, big: false });
+          break;
+        }
+        for (const s of st.ships) {
+          if (s.status !== 'alive' || s.ghost > 0 || s.hitT > 0 || s.id === o.owner) continue;
+          if (Math.hypot(s.x - o.x, s.y - o.y) > SHIP_R + SHOT_R) continue;
+          dead.add(o);
+          if (--s.hp > 0) {
+            s.hitT = HIT_GRACE;
+            st.booms.push({ x: o.x, y: o.y, t: 0, big: false });
             this.events.push({ type: 'sfx', name: 'bump' });
           } else {
-            this.kill(t);
+            this.kill(s);
           }
           break;
         }
       }
     }
-    // Shells cancel each other out.
-    const live = st.shells.filter((s) => !dead.has(s));
+    // Lasers cancel each other out.
+    const live = st.shots.filter((o) => !dead.has(o));
     for (let i = 0; i < live.length; i++) {
       for (let j = i + 1; j < live.length; j++) {
-        if (Math.hypot(live[i].x - live[j].x, live[i].y - live[j].y) < SHELL_R * 3) {
+        if (Math.hypot(live[i].x - live[j].x, live[i].y - live[j].y) < SHOT_R * 3) {
           dead.add(live[i]);
           dead.add(live[j]);
           st.booms.push({ x: live[i].x, y: live[i].y, t: 0, big: false });
         }
       }
     }
-    st.shells = st.shells.filter((s) => !dead.has(s));
+    st.shots = st.shots.filter((o) => !dead.has(o));
   }
 
-  private breakCrate(c: number, r: number): void {
+  private kill(s: Ship): void {
+    s.status = 'dead';
+    s.deathAnim = DEATH_ANIM;
+    s.thrust = 0;
+    this.state.booms.push({ x: s.x, y: s.y, t: 0, big: true });
+    this.events.push({ type: 'death', player: s.id }, { type: 'sfx', name: 'explosion' });
+  }
+
+  /** The free spot farthest from ships and lasers. */
+  private findSpot(self: Ship | null): { x: number; y: number } {
     const st = this.state;
-    st.grid[idx(c, r)] = EMPTY;
-    st.booms.push({ x: (c + 0.5) * CELL, y: (r + 0.5) * CELL, t: 0, big: false });
-    if (this.rng.next() < 0.35) st.powerups.push({ c, r, kind: this.rng.pick(['triple', 'bounce', 'shield'] as const) });
-    this.events.push({ type: 'sfx', name: 'bomb' });
-  }
-
-  private kill(t: Tank): void {
-    t.status = 'dead';
-    t.deathAnim = DEATH_ANIM;
-    t.triple = 0;
-    t.bounce = 0;
-    this.state.booms.push({ x: t.x, y: t.y, t: 0, big: true });
-    this.events.push({ type: 'death', player: t.id }, { type: 'sfx', name: 'explosion' });
+    let best = { x: ARENA_W / 2, y: 20, score: -Infinity };
+    for (let k = 0; k < 80; k++) {
+      const x = this.rng.range(MARGIN + SHIP_R, ARENA_W - MARGIN - SHIP_R);
+      const y = this.rng.range(MARGIN + SHIP_R, ARENA_H - MARGIN - SHIP_R);
+      if (this.rockAt(x, y, SHIP_R + 3)) continue;
+      const nearShip = Math.min(...st.ships.filter((o) => o !== self && o.status === 'alive').map((o) => Math.hypot(o.x - x, o.y - y)), 999);
+      const nearShot = Math.min(...st.shots.map((o) => Math.hypot(o.x - x, o.y - y)), 999);
+      const score = Math.min(nearShip, 120) + Math.min(nearShot, 60) * 2;
+      if (score > best.score) best = { x, y, score };
+    }
+    return best;
   }
 
   onSuspend(): void {}
 
   onResume(): void {
-    const st = this.state;
-    for (const t of st.tanks) {
-      if (t.status !== 'dead') continue;
-      let best = { x: t.x, y: t.y, score: -Infinity };
-      for (let k = 0; k < 60; k++) {
-        const x = (this.rng.int(COLS - 2) + 1.5) * CELL;
-        const y = (this.rng.int(ROWS - 2) + 1.5) * CELL;
-        if (this.tankBlocked(x, y)) continue;
-        const nearTank = Math.min(...st.tanks.filter((o) => o !== t && o.status === 'alive').map((o) => Math.hypot(o.x - x, o.y - y)), 999);
-        const nearShell = Math.min(...st.shells.map((s) => Math.hypot(s.x - x, s.y - y)), 999);
-        const score = Math.min(nearTank, 120) + Math.min(nearShell, 60) * 2;
-        if (score > best.score) best = { x, y, score };
-      }
-      t.x = best.x;
-      t.y = best.y;
-      t.status = 'alive';
-      t.ghost = GHOST_TIME;
-      t.deathAnim = 0;
-      t.cooldown = 0.3;
-      t.hp = MAX_HP;
+    for (const s of this.state.ships) {
+      if (s.status !== 'dead') continue;
+      const spot = this.findSpot(s);
+      s.x = spot.x;
+      s.y = spot.y;
+      s.status = 'alive';
+      s.ghost = GHOST_TIME;
+      s.deathAnim = 0;
+      s.cooldown = 0.3;
+      s.hp = MAX_HP;
     }
   }
 
   removePlayer(id: PlayerId): void {
-    const t = this.state.tanks.find((t) => t.id === id);
-    if (t) t.status = 'out';
+    const s = this.state.ships.find((s) => s.id === id);
+    if (s) s.status = 'out';
   }
 
   isFinished(): boolean {
@@ -391,74 +312,53 @@ class FlameWar implements Minigame<TankState> {
 
   // ---------- bots ----------
 
-  /** Path of a shell fired from (x, y) along `dir`, with `bounces` ricochets, sampled every 4px. */
-  private trace(x: number, y: number, vx: number, vy: number, bounces: number, maxLen: number): Array<[number, number]> {
-    const pts: Array<[number, number]> = [];
-    const sp = Math.hypot(vx, vy);
-    let ux = vx / sp;
-    let uy = vy / sp;
-    for (let d = 0; d < maxLen; d += 4) {
-      const nx = x + ux * 4;
-      const ny = y + uy * 4;
-      if (this.solidAt(nx, ny)) {
-        if (bounces <= 0 || this.solidCrate(nx, ny)) break;
-        bounces--;
-        const hitX = this.solidAt(nx, y);
-        const hitY = this.solidAt(x, ny);
-        if (hitX || !hitY) ux = -ux;
-        if (hitY || !hitX) uy = -uy;
-        continue;
-      }
-      x = nx;
-      y = ny;
-      pts.push([x, y]);
+  /** Whether a laser from (x, y) along `a` reaches (tx, ty) without hitting a rock. */
+  private clearShot(x: number, y: number, a: number, tx: number, ty: number): boolean {
+    const dist = Math.hypot(tx - x, ty - y);
+    for (let d = 0; d < dist; d += 3) {
+      if (this.rockAt(x + Math.cos(a) * d, y + Math.sin(a) * d, SHOT_R)) return false;
     }
-    return pts;
-  }
-
-  private solidCrate(x: number, y: number): boolean {
-    const c = Math.floor(x / CELL);
-    const r = Math.floor(y / CELL);
-    return c >= 0 && r >= 0 && c < COLS && r < ROWS && this.state.grid[idx(c, r)] === CRATE;
+    return true;
   }
 
   botInput(id: PlayerId, difficulty: BotDifficulty): PlayerInput {
-    const t = this.state.tanks.find((t) => t.id === id);
-    if (!t || t.status !== 'alive') return NEUTRAL_INPUT;
+    const s = this.state.ships.find((s) => s.id === id);
+    if (!s || s.status !== 'alive') return NEUTRAL_INPUT;
     let mem = this.botMem.get(id);
     if (!mem) {
-      mem = { timer: 0, heading: t.angle, move: 0, fire: false, wander: this.rng.range(0, Math.PI * 2) };
+      mem = { timer: 0, heading: s.angle, move: 0, fire: false, wander: this.rng.range(0, Math.PI * 2) };
       this.botMem.set(id, mem);
     }
     mem.timer -= 1 / 60;
     if (mem.timer <= 0) {
       mem.timer = BOT_CADENCE[difficulty];
-      this.think(t, mem, difficulty);
+      this.think(s, mem, difficulty);
     }
     // Steer toward the goal heading every tick; only drive once roughly lined up.
-    const diff = angleDiff(t.angle, mem.heading);
+    const diff = angleDiff(s.angle, mem.heading);
     const turn = Math.abs(diff) > 0.05 ? (Math.sign(diff) as -1 | 1) : 0;
     const dy = mem.move !== 0 && Math.abs(diff) < 0.6 ? (mem.move > 0 ? -1 : 1) : 0;
-    const fire = mem.fire && Math.abs(diff) < BOT_FIRE_TOL[difficulty] && t.cooldown <= 0;
+    const fire = mem.fire && Math.abs(diff) < BOT_FIRE_TOL[difficulty] && s.cooldown <= 0;
     if (fire) mem.fire = false;
     return { dx: turn, dy: dy as -1 | 0 | 1, action: fire };
   }
 
-  private think(t: Tank, mem: BotMemory, difficulty: BotDifficulty): void {
+  private think(s: Ship, mem: BotMemory, difficulty: BotDifficulty): void {
     const st = this.state;
-    const free = (a: number, dist = 9) => !this.tankBlocked(t.x + Math.cos(a) * dist, t.y + Math.sin(a) * dist);
+    const free = (a: number, dist = 10) => !this.blocked(s.x + Math.cos(a) * dist, s.y + Math.sin(a) * dist);
 
-    // 1) Dodge incoming shells: move perpendicular to them, forward or in reverse,
+    // 1) Dodge incoming lasers: move perpendicular to them, forward or in reverse,
     //    whichever needs less turning.
-    const look = difficulty === 'easy' ? 0.4 : difficulty === 'medium' ? 0.6 : 0.8;
-    for (const s of st.shells) {
+    const look = difficulty === 'easy' ? 0.35 : difficulty === 'medium' ? 0.55 : 0.75;
+    for (const o of st.shots) {
+      if (o.owner === s.id) continue;
       let danger = false;
       for (let k = 1; k <= 6 && !danger; k++) {
         const tt = (look * k) / 6;
-        danger = Math.hypot(s.x + s.vx * tt - t.x, s.y + s.vy * tt - t.y) < TANK_R + 6;
+        danger = Math.hypot(o.x + o.vx * tt - s.x, o.y + o.vy * tt - s.y) < SHIP_R + 6;
       }
-      if (!danger) continue;
-      const perp = Math.atan2(s.vy, s.vx) + Math.PI / 2;
+      if (!danger || !this.clearShot(o.x, o.y, Math.atan2(o.vy, o.vx), s.x, s.y)) continue;
+      const perp = Math.atan2(o.vy, o.vx) + Math.PI / 2;
       let best: { heading: number; move: -1 | 1; cost: number } | null = null;
       for (const side of [perp, perp + Math.PI]) {
         if (!free(side)) continue;
@@ -466,7 +366,7 @@ class FlameWar implements Minigame<TankState> {
           [side, 1],
           [side + Math.PI, -1],
         ] as const) {
-          const cost = Math.abs(angleDiff(t.angle, heading));
+          const cost = Math.abs(angleDiff(s.angle, heading));
           if (!best || cost < best.cost) best = { heading, move, cost };
         }
       }
@@ -478,21 +378,14 @@ class FlameWar implements Minigame<TankState> {
       }
     }
 
-    // 2) Look for a shot: straight at someone, or (hard bots) a bank shot with one ricochet.
-    const enemies = st.tanks.filter((o) => o !== t && o.status === 'alive' && o.ghost <= 0);
-    if (t.cooldown <= 0.2 && enemies.length && this.rng.next() < BOT_FIRE[difficulty]) {
-      const candidates: number[] = enemies.map((o) => Math.atan2(o.y - t.y, o.x - t.x));
-      if (difficulty === 'hard') for (let k = 0; k < 24; k++) candidates.push((k / 24) * Math.PI * 2);
-      for (const a of candidates) {
-        const vx = Math.cos(a);
-        const vy = Math.sin(a);
-        const bounces = difficulty === 'hard' ? 1 : 0;
-        const path = this.trace(t.x + vx * (TANK_R + 3), t.y + vy * (TANK_R + 3), vx, vy, bounces, 260);
-        const hit = path.findIndex(([x, y]) => enemies.some((o) => Math.hypot(o.x - x, o.y - y) < TANK_R + 2));
-        if (hit === -1) continue;
-        // Don't fire a bank shot that comes back to ourselves first.
-        if (path.slice(0, hit).some(([x, y], i) => i > 4 && Math.hypot(t.x - x, t.y - y) < TANK_R + 3)) continue;
-        mem.heading = a + this.rng.range(-BOT_MISAIM[difficulty], BOT_MISAIM[difficulty]);
+    // 2) Take a shot at anyone in the open.
+    const enemies = st.ships.filter((o) => o !== s && o.status === 'alive' && o.ghost <= 0);
+    if (s.cooldown <= 0.2 && enemies.length && this.rng.next() < BOT_FIRE[difficulty]) {
+      const inSight = enemies
+        .filter((o) => Math.hypot(o.x - s.x, o.y - s.y) < 260)
+        .find((o) => this.clearShot(s.x, s.y, Math.atan2(o.y - s.y, o.x - s.x), o.x, o.y));
+      if (inSight) {
+        mem.heading = Math.atan2(inSight.y - s.y, inSight.x - s.x) + this.rng.range(-BOT_MISAIM[difficulty], BOT_MISAIM[difficulty]);
         mem.move = 0;
         mem.fire = true;
         return;
@@ -500,27 +393,28 @@ class FlameWar implements Minigame<TankState> {
     }
     if (mem.fire) return; // still turning to take a shot
 
-    // 3) Otherwise drive: toward the nearest enemy when far, circling it when close.
-    const target = enemies.reduce<Tank | null>((best, o) => (!best || Math.hypot(o.x - t.x, o.y - t.y) < Math.hypot(best.x - t.x, best.y - t.y) ? o : best), null);
+    // 3) Otherwise fly: toward the nearest enemy when far, circling it when close.
+    const target = enemies.reduce<Ship | null>((best, o) => (!best || Math.hypot(o.x - s.x, o.y - s.y) < Math.hypot(best.x - s.x, best.y - s.y) ? o : best), null);
     let heading = mem.wander;
     if (target) {
-      const toTarget = Math.atan2(target.y - t.y, target.x - t.x);
-      heading = Math.hypot(target.x - t.x, target.y - t.y) > KEEP_DISTANCE ? toTarget : toTarget + (t.id % 2 ? 1 : -1) * (Math.PI / 2);
+      const toTarget = Math.atan2(target.y - s.y, target.x - s.x);
+      heading = Math.hypot(target.x - s.x, target.y - s.y) > KEEP_DISTANCE ? toTarget : toTarget + (s.id % 2 ? 1 : -1) * (Math.PI / 2);
     }
-    if (!free(heading, 10)) {
-      // Blocked: pick a new free direction (prefer one close to where we're facing).
-      const options = Array.from({ length: 8 }, (_, k) => (k / 8) * Math.PI * 2).filter((a) => free(a, 10));
-      mem.wander = options.length ? options.reduce((a, b) => (Math.abs(angleDiff(t.angle, a)) < Math.abs(angleDiff(t.angle, b)) ? a : b)) : t.angle + Math.PI;
+    if (!free(heading, 12)) {
+      // Blocked by a rock or the edge: pick a new free direction close to where we're facing.
+      const options = Array.from({ length: 12 }, (_, k) => (k / 12) * Math.PI * 2).filter((a) => free(a, 12));
+      mem.wander = options.length ? options.reduce((a, b) => (Math.abs(angleDiff(s.angle, a)) < Math.abs(angleDiff(s.angle, b)) ? a : b)) : s.angle + Math.PI;
       heading = mem.wander;
     }
     mem.heading = heading;
     mem.move = 1;
   }
 }
+
 export const FlameWarDef: MinigameDef = {
   id: 'tank',
   name: 'FLAME WAR',
   handle: '@flame.war',
-  hint: 'W/S ANDA  A/D GIRA  ESPAÇO ATIRA',
+  hint: 'W/S ACELERA  A/D GIRA  ESPAÇO ATIRA',
   create: (players, seed) => new FlameWar(players, seed),
 };

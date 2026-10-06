@@ -1,7 +1,8 @@
-﻿import { SCREEN_H, SCREEN_W } from '@shared/arena';
+import { SCREEN_H, SCREEN_W } from '@shared/arena';
 import type { FeedPlayer, FeedSnapshot } from '@shared/feed';
 import { CHARACTERS, type PlayerId } from '@shared/types';
-import { PAL, outlinedText, panel, portrait, text } from '../core/draw';
+import { drawPortrait } from '../core/cast';
+import { PAL, outlinedText, panel, text } from '../core/draw';
 import type { App, Screen } from './screen';
 import { SelectScreen } from './select';
 import { TitleScreen } from './title';
@@ -17,6 +18,10 @@ export class ResultsScreen implements Screen {
   private awards: Award[] = [];
 
   constructor(private app: App, private snap: FeedSnapshot, private localId: PlayerId) {
+    app.music.rate = 1;
+    app.music.tension = 0;
+    app.music.setMuffled(false);
+    app.music.play('theme', 'menu');
     const ps = snap.players;
     const byFlops = [...ps].sort((a, b) => b.stats.flops - a.stats.flops)[0];
     if (byFlops && byFlops.stats.flops > 0) this.awards.push({ title: 'REI DO FLOP', player: byFlops, detail: [`${byFlops.stats.flops} MORTES`, 'NO RETORNO'] });
@@ -54,9 +59,9 @@ export class ResultsScreen implements Screen {
       if (!p) return;
       const y = 38 + i * 20;
       const mine = id === this.localId;
-      panel(ctx, 8, y, 216, 18, mine ? '#2e1d55' : PAL.panel, i === 0 ? PAL.yellow : PAL.panelLight);
+      panel(ctx, 8, y, 216, 18, mine ? '#3a1a6a' : PAL.panel, i === 0 ? PAL.yellow : PAL.panelLight);
       text(ctx, `${i + 1}º`, 13, y + 6, i === 0 ? PAL.yellow : PAL.white);
-      portrait(ctx, p.info.character, 38, y + 2, 1, i !== 0);
+      drawPortrait(ctx, p.info.character, 38, y + 1, 1, i !== 0, i === 0 ? 'win' : 'lose', this.t);
       text(ctx, p.info.name, 60, y + 6, CHARACTERS[p.info.character].color);
       text(ctx, `MORTES ${p.stats.deaths}`, 218, y + 6, PAL.grey, 8, 'right');
     });
@@ -66,7 +71,7 @@ export class ResultsScreen implements Screen {
     this.awards.forEach((a, i) => {
       const y = 56 + i * 48;
       text(ctx, a.title, 242, y, PAL.yellow);
-      portrait(ctx, a.player.info.character, 242, y + 9, 1);
+      drawPortrait(ctx, a.player.info.character, 242, y + 9, 1, false, 'idle', this.t);
       text(ctx, a.player.info.name, 262, y + 13, CHARACTERS[a.player.info.character].color);
       a.detail.forEach((line, j) => text(ctx, line, 242, y + 27 + j * 9, PAL.grey));
     });

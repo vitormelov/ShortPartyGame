@@ -25,7 +25,7 @@ export const ADS: AdCopy[] = [
 export function drawProduct(ctx: CanvasRenderingContext2D, kind: AdCopy['product'], x: number, y: number, time: number): void {
   const bob = Math.round(Math.sin(time * 4) * 2);
   y += bob;
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillStyle = 'rgba(20,6,46,0.25)';
   ctx.fillRect(x - 14, y + 34, 28, 4);
   switch (kind) {
     case 'can':

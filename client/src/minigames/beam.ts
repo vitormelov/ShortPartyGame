@@ -1,12 +1,12 @@
-﻿import { ARENA_H, ARENA_W } from '@shared/arena';
+import { ARENA_H, ARENA_W } from '@shared/arena';
 import { BEAM_HALF, DASH_COOLDOWN, DEATH_ANIM, FIELD, FIRE_TIME, type Beam, type BeamPlayer, type BeamState } from '@shared/minigames/beam/logic';
-import { CHARACTERS, type PlayerId } from '@shared/types';
-import { PAL, sprite } from '../core/draw';
-import { BLOB } from './meteor';
+import { type PlayerId } from '@shared/types';
+import { BRAND, PAL } from '../core/draw';
 import { localMarker, type MinigameRenderer } from './renderer';
+import { drawCharacter } from '../core/cast';
 
 function drawBackground(ctx: CanvasRenderingContext2D, time: number): void {
-  ctx.fillStyle = '#05030c';
+  ctx.fillStyle = BRAND.roxo;
   ctx.fillRect(0, 0, ARENA_W, ARENA_H);
   ctx.fillStyle = '#0e0a1e';
   ctx.fillRect(FIELD.x, FIELD.y, FIELD.w, FIELD.h);
@@ -75,30 +75,26 @@ function drawBeam(ctx: CanvasRenderingContext2D, b: Beam, time: number): void {
 function drawPlayer(ctx: CanvasRenderingContext2D, p: BeamPlayer, time: number): void {
   if (p.status === 'out' || (p.status === 'dead' && p.deathAnim <= 0)) return;
   if (p.ghost > 0 && Math.floor(time * 16) % 2 === 0) return;
-  const ch = CHARACTERS[p.character];
   const dead = p.status === 'dead';
   const flash = dead && Math.floor(time * 20) % 2 === 0;
-  const colors = flash
-    ? { k: '#ffffff', c: '#ff5ac8', L: '#ffffff', K: '#ff5ac8', w: '#ffffff' }
-    : { k: PAL.ink, c: ch.color, L: ch.light, K: ch.dark, w: '#ffffff' };
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillStyle = 'rgba(20,6,46,0.4)';
   ctx.fillRect(Math.round(p.x - 4), Math.round(p.y + 2), 8, 3);
   if (dead) {
     const s = Math.max(0.1, p.deathAnim / DEATH_ANIM);
     ctx.save();
     ctx.translate(Math.round(p.x), Math.round(p.y));
     ctx.scale(s, s);
-    sprite(ctx, BLOB, -5, -8, colors);
+    drawCharacter(ctx, p.character, 0, 2, { flash, pose: 'lose', time });
     ctx.restore();
     return;
   }
   if (p.dashT > 0) {
     ctx.globalAlpha = 0.4;
-    sprite(ctx, BLOB, p.x - 5 - p.fx * 7, p.y - 8 - p.fy * 7, colors);
+    drawCharacter(ctx, p.character, p.x - p.fx * 7, p.y + 2 - p.fy * 7, { time });
     ctx.globalAlpha = 1;
   }
   const bob = p.walk > 0 && Math.floor(p.walk * 10) % 2 ? 1 : 0;
-  sprite(ctx, BLOB, p.x - 5, p.y - 8 - bob, colors);
+  drawCharacter(ctx, p.character, p.x, p.y + 2, { frame: bob, flip: p.fx < 0, time });
 }
 
 export const beamRenderer: MinigameRenderer = {

@@ -1,14 +1,27 @@
-﻿/** Tiny chiptune-ish SFX synth on WebAudio. No assets needed. */
+/** Tiny chiptune-ish SFX synth on WebAudio. No assets needed. */
 export class Sfx {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
+  private volume = 0.35;
+
+  /** Where the music plugs in (null until the first key press unlocks audio). */
+  output(): { ctx: AudioContext; dest: AudioNode; noise: AudioBuffer } | null {
+    if (!this.ctx || !this.master || !this.noiseBuf) return null;
+    return { ctx: this.ctx, dest: this.master, noise: this.noiseBuf };
+  }
+
+  /** 0..1 (the Opções screen keeps it in 0..10 steps). */
+  setVolume(v: number): void {
+    this.volume = 0.35 * Math.max(0, Math.min(1, v));
+    if (this.master) this.master.gain.value = this.volume;
+  }
 
   unlock(): void {
     if (!this.ctx) {
       this.ctx = new AudioContext();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.35;
+      this.master.gain.value = this.volume;
       this.master.connect(this.ctx.destination);
       const len = this.ctx.sampleRate;
       this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
@@ -52,6 +65,53 @@ export class Sfx {
     src.stop(t + dur + 0.02);
   }
 
+  /** The 4-note signature (title, swipe, victory), in variations. */
+  private jingle(kind: 'title' | 'swipe' | 'win'): void {
+    const notes = [659, 784, 1175, 1047]; // E5 G5 D6 C6
+    if (kind === 'swipe') {
+      notes.forEach((f, i) => this.tone(f * 2, 0.05, 'square', 0.05, undefined, 0.05 + i * 0.035));
+    } else if (kind === 'title') {
+      notes.forEach((f, i) => {
+        this.tone(f, 0.16, 'square', 0.16, undefined, i * 0.13);
+        this.tone(f / 2, 0.16, 'triangle', 0.18, undefined, i * 0.13);
+      });
+    } else {
+      // Victory: slower, harmonized, and it resolves up an octave.
+      [...notes, 1319].forEach((f, i) => {
+        const at = i * 0.16;
+        const dur = i === 4 ? 0.6 : 0.18;
+        this.tone(f, dur, 'square', 0.18, undefined, at);
+        this.tone(f * 1.26, dur, 'square', 0.08, undefined, at);
+        this.tone(f / 2, dur, 'triangle', 0.2, undefined, at);
+      });
+    }
+  }
+
+  /**
+   * Animal Crossing-style babble: one blip per syllable with the character's own timbre and pitch.
+   * `who` is a CHARACTERS index, or 8 for the Algoritmo.
+   */
+  voice(who: number, syllables = 6): void {
+    const V: Array<[OscillatorType, number, number, number]> = [
+      ['square', 340, 0.07, 0.15], // PALHAÇO: honky
+      ['sawtooth', 280, 0.06, 0.1], // FOGO: crackling
+      ['triangle', 640, 0.05, 0.2], // RISADA: giggles, fast and high
+      ['sine', 460, 0.09, 0.12], // OLHINHOS: shy
+      ['square', 130, 0.12, 0.16], // CHAD: deep, slow
+      ['triangle', 520, 0.1, 0.16], // CHORÃO: wobbly
+      ['sawtooth', 210, 0.07, 0.12], // CAVEIRA: bony clacks
+      ['triangle', 720, 0.08, 0.16], // DIVA: high and sassy
+      ['square', 330, 0.08, 0.1], // ALGORITMO: robotic, fixed steps
+    ];
+    const [type, base, step, vol] = V[who] ?? V[8];
+    for (let i = 0; i < syllables; i++) {
+      const robot = who === 8;
+      const f = robot ? base * [1, 1.5, 1.25, 1.5][i % 4] : base * Math.pow(2, (Math.random() * 7 - 2) / 12);
+      this.tone(f, step * 0.8, type, vol, robot ? undefined : f * (Math.random() < 0.3 ? 1.2 : 0.92), i * step);
+    }
+    if (who === 1) this.noise(syllables * step, 0.06, 3000, 800, 'bandpass'); // fire crackle
+  }
+
   play(name: string): void {
     if (name.startsWith('mel')) {
       // Melody step on a major pentatonic scale (Trend da Dancinha).
@@ -71,7 +131,17 @@ export class Sfx {
         this.tone(880, 0.06, 'square', 0.2);
         break;
       case 'swipe':
-        this.noise(0.25, 0.5, 600, 6000, 'bandpass');
+        // The app's swipe: a soft "fwip" with the jingle's ghost on top.
+        this.noise(0.22, 0.45, 500, 5000, 'bandpass');
+        this.jingle('swipe');
+        break;
+      case 'jingle':
+        this.jingle('title');
+        break;
+      case 'like':
+        // Like "pop": a quick bubble that bends up.
+        this.tone(520, 0.07, 'sine', 0.35, 1040);
+        this.tone(1560, 0.05, 'sine', 0.12, undefined, 0.04);
         break;
       case 'tick':
         this.tone(660, 0.08, 'square', 0.25);
@@ -124,6 +194,11 @@ export class Sfx {
         this.noise(0.18, 0.45, 1800, 200, 'lowpass');
         this.tone(120, 0.12, 'square', 0.2, 60);
         break;
+      case 'pew':
+        // Space laser.
+        this.tone(1600, 0.12, 'square', 0.14, 300);
+        this.tone(2400, 0.06, 'sawtooth', 0.06, 900);
+        break;
       case 'ricochet':
         this.tone(2400, 0.08, 'triangle', 0.15, 1200);
         break;
@@ -160,11 +235,13 @@ export class Sfx {
         this.tone(2093, 0.18, 'sine', 0.3, undefined, 0.1);
         break;
       case 'menu':
-        this.tone(880, 0.05, 'square', 0.15);
+        // App tap.
+        this.tone(1200, 0.035, 'sine', 0.22, 900);
         break;
       case 'confirm':
-        this.tone(660, 0.07, 'square', 0.2);
-        this.tone(990, 0.1, 'square', 0.2, undefined, 0.07);
+        // "Plim", like the notification but shorter.
+        this.tone(1319, 0.07, 'sine', 0.28);
+        this.tone(1976, 0.12, 'sine', 0.24, undefined, 0.06);
         break;
       case 'bomb':
         this.tone(180, 0.08, 'square', 0.2, 90);
@@ -191,7 +268,7 @@ export class Sfx {
         [392, 330, 262, 196].forEach((f, i) => this.tone(f, 0.18, 'square', 0.25, undefined, i * 0.15));
         break;
       case 'win':
-        [523, 659, 784, 1046, 784, 1046].forEach((f, i) => this.tone(f, 0.14, 'square', 0.25, undefined, i * 0.12));
+        this.jingle('win');
         break;
     }
   }

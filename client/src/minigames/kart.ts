@@ -103,7 +103,7 @@ function drawKart(ctx: CanvasRenderingContext2D, k: Kart, time: number): void {
   ctx.save();
   ctx.translate(Math.round(k.x), Math.round(k.y));
   if (k.status === 'race' || k.status === 'done') {
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillStyle = 'rgba(20,6,46,0.35)';
     ctx.fillRect(-4, 2, 9, 3);
   }
   ctx.rotate(k.angle + (k.status === 'falling' ? (FALL_TIME - k.fall) * 12 : 0));
