@@ -8,6 +8,7 @@ import { FakeComments, drawProgressBar, drawSocialOverlay, drawTopHud } from '..
 import { drawComments, drawHaterPanel } from '../feed/haters';
 import { CLIP_COLORS, RENDERERS } from '../minigames';
 import type { Transport } from '../net/transport';
+import { MinigameEndScreen } from './minigame-end';
 import { ResultsScreen } from './results';
 import type { App, Screen } from './screen';
 
@@ -89,7 +90,8 @@ export class GameScreen implements Screen {
   private clipDeaths = 0;
   private snap: FeedSnapshot;
 
-  constructor(private app: App, private transport: Transport) {
+  /** `again` restarts the same match (REPETIR PARTIDA in the minigames mode). */
+  constructor(private app: App, private transport: Transport, private again?: () => Screen) {
     this.snap = transport.snapshot();
   }
 
@@ -264,7 +266,8 @@ export class GameScreen implements Screen {
       this.overTime += dt;
       if (this.overTime > 2 && this.app.input.pressed('action')) {
         this.transport.dispose();
-        this.app.go(new ResultsScreen(this.app, this.snap, this.localId));
+        if (this.snap.mode === 'minigame') this.app.go(new MinigameEndScreen(this.app, this.snap, this.localId, this.again));
+        else this.app.go(new ResultsScreen(this.app, this.snap, this.localId));
       }
     }
   }
@@ -490,7 +493,7 @@ export class GameScreen implements Screen {
     const snap = this.snap;
     ctx.fillStyle = 'rgba(10,6,20,0.75)';
     ctx.fillRect(0, HUD_H, SCREEN_W, ARENA_H);
-    outlinedText(ctx, 'FIM DO FEED', SCREEN_W / 2, 36, PAL.yellow, 16);
+    outlinedText(ctx, this.snap.mode === 'minigame' ? 'FIM DE JOGO' : 'FIM DO FEED', SCREEN_W / 2, 36, PAL.yellow, 16);
     const winners = snap.winners;
     const frame = Math.floor(this.t * 3) % 2;
     winners.forEach((id, i) => {
@@ -505,6 +508,6 @@ export class GameScreen implements Screen {
     // Everyone else, slumped.
     const losers = snap.players.filter((p) => !winners.includes(p.info.id));
     losers.forEach((p, i) => drawCharacter(ctx, p.info.character, SCREEN_W / 2 - (losers.length - 1) * 14 + i * 28, 176, { size: 22, pose: 'lose', time: this.t }));
-    if (this.overTime > 2 && Math.floor(this.t * 2) % 2 === 0) text(ctx, 'ESPAÇO: RESULTADOS', SCREEN_W / 2, 186, PAL.white, 8, 'center');
+    if (this.overTime > 2 && Math.floor(this.t * 2) % 2 === 0) text(ctx, this.snap.mode === 'minigame' ? 'ESPAÇO: CONTINUAR' : 'ESPAÇO: RESULTADOS', SCREEN_W / 2, 186, PAL.white, 8, 'center');
   }
 }

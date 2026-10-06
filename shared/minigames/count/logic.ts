@@ -1,4 +1,4 @@
-﻿import { ARENA_H, ARENA_W } from '../../arena';
+import { ARENA_H, ARENA_W } from '../../arena';
 import type { Minigame, MinigameDef } from '../../minigame';
 import { Rng } from '../../rng';
 import type { BotDifficulty, GameEvent, PlayerId, PlayerInfo, PlayerInput, TickInput } from '../../types';
@@ -181,6 +181,16 @@ class ContaOsHaters implements Minigame<CountState> {
     return this.state.phase === 'reveal' && this.state.phaseTime >= revealTime(this.state.answer);
   }
 
+  /** Minigames mode: everyone was close enough, so the furthest guess goes out. */
+  roundLosers(): PlayerId[] {
+    const st = this.state;
+    const alive = st.counters.filter((c) => c.status === 'alive');
+    if (alive.length === 0) return [];
+    const worst = Math.max(...alive.map((c) => Math.abs(c.guess - st.answer)));
+    if (worst === 0) return [];
+    return alive.filter((c) => Math.abs(c.guess - st.answer) === worst).map((c) => c.id);
+  }
+
   drainEvents(): GameEvent[] {
     const e = this.events;
     this.events = [];
@@ -215,5 +225,6 @@ export const ContaOsHatersDef: MinigameDef = {
   name: 'CONTA OS HATERS',
   handle: '@conta.os.haters',
   hint: 'W SOMA  S DIMINUI  ESPAÇO CONFIRMA',
+  rounds: true,
   create: (players, seed) => new ContaOsHaters(players, seed),
 };

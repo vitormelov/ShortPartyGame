@@ -2,6 +2,7 @@ import { SCREEN_H, SCREEN_W } from '@shared/arena';
 import type { FeedPlayer, FeedSnapshot } from '@shared/feed';
 import { CHARACTERS, type PlayerId } from '@shared/types';
 import { drawPortrait } from '../core/cast';
+import { Showcase } from '../three/showcase';
 import { PAL, outlinedText, panel, text } from '../core/draw';
 import type { App, Screen } from './screen';
 import { SelectScreen } from './select';
@@ -15,6 +16,7 @@ interface Award {
 
 export class ResultsScreen implements Screen {
   private t = 0;
+  private show3d: Showcase | null = null;
   private awards: Award[] = [];
 
   constructor(private app: App, private snap: FeedSnapshot, private localId: PlayerId) {
@@ -47,6 +49,7 @@ export class ResultsScreen implements Screen {
   }
 
   render(ctx: CanvasRenderingContext2D): void {
+    const show = Showcase.enabled() ? (this.show3d ??= new Showcase()) : null;
     ctx.fillStyle = PAL.night;
     ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
     outlinedText(ctx, 'MAIS CURTIDOS', SCREEN_W / 2, 6, PAL.yellow, 16);
@@ -61,7 +64,9 @@ export class ResultsScreen implements Screen {
       const mine = id === this.localId;
       panel(ctx, 8, y, 216, 18, mine ? '#3a1a6a' : PAL.panel, i === 0 ? PAL.yellow : PAL.panelLight);
       text(ctx, `${i + 1}º`, 13, y + 6, i === 0 ? PAL.yellow : PAL.white);
-      drawPortrait(ctx, p.info.character, 38, y + 1, 1, i !== 0, i === 0 ? 'win' : 'lose', this.t);
+      // The winner celebrates; everyone else hangs their head.
+      if (show) show.add({ key: 300 + i, character: p.info.character, x: 46, y: y + 17, height: 18, hop: i === 0 ? Math.abs(Math.sin(this.t * 7)) * 2 : 0, heading: i === 0 ? this.t * 3 : 0, tilt: i === 0 ? 0 : 0.35, dance: i === 0 });
+      else drawPortrait(ctx, p.info.character, 38, y + 1, 1, i !== 0, i === 0 ? 'win' : 'lose', this.t);
       text(ctx, p.info.name, 60, y + 6, CHARACTERS[p.info.character].color);
       text(ctx, `MORTES ${p.stats.deaths}`, 218, y + 6, PAL.grey, 8, 'right');
     });
@@ -71,11 +76,13 @@ export class ResultsScreen implements Screen {
     this.awards.forEach((a, i) => {
       const y = 56 + i * 48;
       text(ctx, a.title, 242, y, PAL.yellow);
-      drawPortrait(ctx, a.player.info.character, 242, y + 9, 1, false, 'idle', this.t);
+      if (show) show.add({ key: 400 + i, character: a.player.info.character, x: 250, y: y + 25, height: 18 });
+      else drawPortrait(ctx, a.player.info.character, 242, y + 9, 1, false, 'idle', this.t);
       text(ctx, a.player.info.name, 262, y + 13, CHARACTERS[a.player.info.character].color);
       a.detail.forEach((line, j) => text(ctx, line, 242, y + 27 + j * 9, PAL.grey));
     });
 
+    show?.flush(ctx, this.t);
     if (this.t > 0.5 && Math.floor(this.t * 2) % 2 === 0) text(ctx, 'ESPAÇO: REVANCHE   ESC: MENU', SCREEN_W / 2, SCREEN_H - 12, PAL.white, 8, 'center');
   }
 }

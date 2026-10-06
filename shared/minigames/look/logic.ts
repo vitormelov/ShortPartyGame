@@ -147,5 +147,6 @@ export const NaoOlheDef: MinigameDef = {
   name: 'NÃO OLHE',
   handle: '@nao.olhe',
   hint: 'ESCOLHA UM LADO (WASD). NÃO OLHE PRO MESMO DO HATER',
+  rounds: true,
   create: (players, seed) => new NaoOlhe(players, seed),
 };

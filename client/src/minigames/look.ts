@@ -5,13 +5,13 @@ import { BRAND, PAL, outlinedText, text } from '../core/draw';
 import { hash, type MinigameRenderer } from './renderer';
 import { drawCharacter } from '../core/cast';
 
-const DIR_VEC: ReadonlyArray<readonly [number, number]> = [
+export const DIR_VEC: ReadonlyArray<readonly [number, number]> = [
   [0, -1],
   [1, 0],
   [0, 1],
   [-1, 0],
 ];
-const KEY = ['W', 'D', 'S', 'A'];
+export const KEY = ['W', 'D', 'S', 'A'];
 const ROW_Y = 146;
 
 /** Pixel arrow pointing in a direction, centered on (x, y). */
@@ -150,7 +150,7 @@ export const lookRenderer: MinigameRenderer = {
   },
 };
 
-function slotX(i: number, n: number): number {
+export function slotX(i: number, n: number): number {
   const span = Math.min(300, (n - 1) * 44);
   return Math.round(ARENA_W / 2 - span / 2 + (n > 1 ? (i * span) / (n - 1) : 0));
 }

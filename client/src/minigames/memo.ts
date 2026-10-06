@@ -1,8 +1,8 @@
 import { ARENA_H, ARENA_W } from '@shared/arena';
 import type { MemoState, MemoViewer } from '@shared/minigames/memo/logic';
 import type { PlayerId } from '@shared/types';
-import { PAL, outlinedText, panel, portrait, text } from '../core/draw';
-import { ADS, drawProduct } from './ad';
+import { PAL, outlinedText, panel, text } from '../core/draw';
+import { ADS, drawProduct, face } from './ad';
 import { arrow } from './mimic';
 import type { MinigameRenderer } from './renderer';
 
@@ -80,7 +80,7 @@ function viewerRow(ctx: CanvasRenderingContext2D, viewers: MemoViewer[], len: nu
   viewers.forEach((v, i) => {
     if (v.status === 'out') return;
     const x = x0 + i * w;
-    portrait(ctx, v.character, x + 12, y, 1, v.status === 'fail');
+    face(ctx, v.character, x + 12, y, 1, v.status === 'fail');
     if (v.status === 'ok') text(ctx, 'OK', x + 20, y + 18, PAL.green, 8, 'center');
     else if (v.status === 'fail') text(ctx, 'X', x + 20, y + 18, PAL.red, 8, 'center');
     else {

@@ -176,3 +176,21 @@ Novos minigames serão adicionados depois. A arquitetura deve tornar isso trivia
 **Fase 3: conteúdo e polimento**
 8. **Minigames 3–6.**
 9. **Polimento:** áudio chiptune, juice (screen shake, partículas, flashes), sprites finais, revanche.
+
+## Visual 3D (estilo Nintendo 64)
+
+Todo o jogo tem uma versão 3D (Three.js), ligada em **Opções → VISUAL 3D** (desligada = a versão 2D original). A lógica não muda: cada minigame tem um renderer 3D em `client/src/three/` que desenha o mesmo estado; HUD, comentários, placas e textos continuam 2D por cima.
+
+- **Base comum** (`three/stage.ts`): renderer compartilhado em baixa resolução, texturas pequenas e borradas, neblina, sombras redondas, marcador amarelo sobre você e projeção 3D → tela para os overlays.
+- **Minigames:** os 18, cada um com cenário próprio (ex.: Corda Quente com a corda girando de verdade, Termos de Uso com a página presa na lombada, Lanterna Feed com lanternas que iluminam de verdade).
+- **Eventos:** X1 (roda do Roda a Roda em 3D, faroeste, píer, pong), Enquete (candidatos em 3D nos cartões), anúncios (produto girando e quem assiste em 3D).
+- **Menus:** título, seleção e resultados com os personagens 3D (`three/showcase.ts`).
+- **Elenco 3D** (`three/characters3d.ts`): o elenco próprio de emojis em low-poly (é o que vai publicado). **PERSONAGENS 3D → N64 (TESTE)** usa modelos do Mario Party 2 só para teste local: ficam em `client/public/characters/n64/`, fora do Git e removidos do build (não podem ser publicados).
+
+## Menus e modos de jogo
+
+- **Tela inicial:** JOGAR e OPÇÕES.
+- **JOGAR → SOLO:** MODO PADRÃO (o feed: clipes, retornos, anúncios, enquetes, X1) ou MODO MINIGAMES.
+- **JOGAR → MULTIPLAYER:** CRIAR SALA (escolhe o modo e gera uma senha de 4 letras, sem 0/O e 1/I) ou ENTRAR EM SALA (digita a senha). A conexão depende do servidor online (fase 2): por enquanto a sala criada joga localmente com bots e entrar em sala avisa que o servidor ainda não está no ar.
+- **Modo minigames:** um minigame só, sem cortes, retornos, anúncios ou comentários de hater; 1 vida (eliminação), o último vivo vence. A dificuldade (heat) sobe de 0 a 1 em 90 s para toda partida terminar (ex.: na Bolha Social a plataforma continua encolhendo; no Flame War os asteroides vão explodindo). Minigames por rodada (Conta os Haters, Não Olhe, Kart) recomeçam com os sobreviventes; se ninguém morreu na rodada, sai quem foi pior (Kart: o último na corrida; Conta os Haters: o palpite mais longe). No fim: REPETIR PARTIDA, OUTRO MINIGAME ou MENU PRINCIPAL. `npm run sim:mini` simula o modo com 8 bots em cada minigame.
+

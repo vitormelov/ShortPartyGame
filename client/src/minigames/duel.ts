@@ -64,7 +64,21 @@ function keyCap(ctx: CanvasRenderingContext2D, k: number, cx: number, cy: number
 
 // ---------- Roda a Roda ----------
 
-function drawWheel(ctx: CanvasRenderingContext2D, st: DuelState, time: number): void {
+function drawWheel(ctx: CanvasRenderingContext2D, st: DuelState, time: number, ui = false): void {
+  const stopped = st.phaseTime >= SPIN_TIME;
+  if (!ui) drawWheelArt(ctx, st, time);
+  outlinedText(ctx, 'X1!', 52, 70, PAL.yellow, 32);
+  if (stopped) {
+    outlinedText(ctx, nameOf(st, st.a), 52, 112, CHARACTERS[st.candidates[st.a].character].color, 8);
+    text(ctx, 'VS', 52, 124, PAL.pink, 8, 'center');
+    outlinedText(ctx, nameOf(st, st.b), 52, 136, CHARACTERS[st.candidates[st.b].character].color, 8);
+  } else {
+    text(ctx, 'GIRANDO...', 52, 120, PAL.white, 8, 'center');
+  }
+}
+
+/** The studio and the wheel itself (the 3D version draws its own). */
+function drawWheelArt(ctx: CanvasRenderingContext2D, st: DuelState, time: number): void {
   studio(ctx, time);
   const t = st.phaseTime;
   const rot = wheelAngle(st, t);
@@ -145,15 +159,6 @@ function drawWheel(ctx: CanvasRenderingContext2D, st: DuelState, time: number): 
     tri(1.5, PAL.ink);
     tri(0, PAL.red);
   }
-
-  outlinedText(ctx, 'X1!', 52, 70, PAL.yellow, 32);
-  if (stopped) {
-    outlinedText(ctx, nameOf(st, st.a), 52, 112, CHARACTERS[st.candidates[st.a].character].color, 8);
-    text(ctx, 'VS', 52, 124, PAL.pink, 8, 'center');
-    outlinedText(ctx, nameOf(st, st.b), 52, 136, CHARACTERS[st.candidates[st.b].character].color, 8);
-  } else {
-    text(ctx, 'GIRANDO...', 52, 120, PAL.white, 8, 'center');
-  }
 }
 
 // ---------- Intro / bets ----------
@@ -176,15 +181,15 @@ function bets(ctx: CanvasRenderingContext2D, st: DuelState, localId: PlayerId): 
   }
 }
 
-function drawIntro(ctx: CanvasRenderingContext2D, st: DuelState, time: number, localId: PlayerId): void {
-  studio(ctx, time);
+function drawIntro(ctx: CanvasRenderingContext2D, st: DuelState, time: number, localId: PlayerId, ui = false): void {
+  if (!ui) studio(ctx, time);
   outlinedText(ctx, KIND_NAME[st.kind], ARENA_W / 2, 16, PAL.yellow, 16);
   text(ctx, KIND_HINT[st.kind], ARENA_W / 2, 36, PAL.white, 8, 'center');
   for (const side of [0, 1] as const) {
     const idx = side === 0 ? st.a : st.b;
     const c = st.candidates[idx];
     const x = side === 0 ? 96 : ARENA_W - 96;
-    portrait(ctx, c.character, x - 24, 56, 3);
+    if (!ui) portrait(ctx, c.character, x - 24, 56, 3);
     outlinedText(ctx, nameOf(st, idx), x, 110, CHARACTERS[c.character].color, 8);
     text(ctx, side === 0 ? '< A' : 'D >', x, 124, PAL.grey, 8, 'center');
   }
@@ -222,7 +227,30 @@ function cowboy(ctx: CanvasRenderingContext2D, character: number, x: number, y: 
   }
 }
 
-function drawQuickDraw(ctx: CanvasRenderingContext2D, st: DuelState, time: number): void {
+function drawQuickDraw(ctx: CanvasRenderingContext2D, st: DuelState, time: number, ui = false): void {
+  if (!ui) drawWestern(ctx, time);
+  const q = st.qd;
+  const decided = st.phase === 'result';
+  const xs = [104, ARENA_W - 104];
+  for (const side of [0, 1] as const) {
+    const c = st.candidates[side === 0 ? st.a : st.b];
+    const lostRound = (q.ended || decided) && q.roundWinner !== -1 && q.roundWinner !== side && q.roundTime > 0.25;
+    const lostDuel = decided && st.winner !== side;
+    if (!ui) cowboy(ctx, c.character, xs[side], 132, side === 0 ? 1 : -1, lostRound || lostDuel, time);
+    text(ctx, CHARACTERS[c.character].name, xs[side], 140, CHARACTERS[c.character].color, 8, 'center');
+    // Score pips (best of 3).
+    for (let k = 0; k < 2; k++) {
+      ctx.fillStyle = PAL.ink;
+      ctx.fillRect(xs[side] - 9 + k * 12, 152, 8, 8);
+      ctx.fillStyle = k < q.score[side] ? PAL.yellow : '#7a5a3a';
+      ctx.fillRect(xs[side] - 8 + k * 12, 153, 6, 6);
+    }
+  }
+
+  drawQuickDrawSignals(ctx, st, ui);
+}
+
+function drawWestern(ctx: CanvasRenderingContext2D, time: number): void {
   const bands = ['#ffb86a', '#ff9a4a', '#f27a3a', '#d85a3a', '#a83a4a'];
   bands.forEach((c, i) => {
     ctx.fillStyle = c;
@@ -252,25 +280,13 @@ function drawQuickDraw(ctx: CanvasRenderingContext2D, st: DuelState, time: numbe
   ctx.beginPath();
   ctx.arc(tw, 150, 5, 0, Math.PI * 2);
   ctx.stroke();
+}
 
+/** The cork shot, POP!, round texts and the key on JÁ! (the flying cork is drawn only in 2D). */
+function drawQuickDrawSignals(ctx: CanvasRenderingContext2D, st: DuelState, ui: boolean): void {
   const q = st.qd;
   const decided = st.phase === 'result';
   const xs = [104, ARENA_W - 104];
-  for (const side of [0, 1] as const) {
-    const c = st.candidates[side === 0 ? st.a : st.b];
-    const lostRound = (q.ended || decided) && q.roundWinner !== -1 && q.roundWinner !== side && q.roundTime > 0.25;
-    const lostDuel = decided && st.winner !== side;
-    cowboy(ctx, c.character, xs[side], 132, side === 0 ? 1 : -1, lostRound || lostDuel, time);
-    text(ctx, CHARACTERS[c.character].name, xs[side], 140, CHARACTERS[c.character].color, 8, 'center');
-    // Score pips (best of 3).
-    for (let k = 0; k < 2; k++) {
-      ctx.fillStyle = PAL.ink;
-      ctx.fillRect(xs[side] - 9 + k * 12, 152, 8, 8);
-      ctx.fillStyle = k < q.score[side] ? PAL.yellow : '#7a5a3a';
-      ctx.fillRect(xs[side] - 8 + k * 12, 153, 6, 6);
-    }
-  }
-
   if (q.ended || decided) {
     // The cork flies from the winner's pistol to the loser's face, then POP!
     const w = q.roundWinner;
@@ -279,6 +295,7 @@ function drawQuickDraw(ctx: CanvasRenderingContext2D, st: DuelState, time: numbe
       const to = xs[w === 0 ? 1 : 0] + (w === 0 ? -6 : 6);
       const k = Math.min(1, q.roundTime / 0.25);
       if (k < 1) {
+        if (ui) return;
         const cx = from + (to - from) * k;
         ctx.fillStyle = PAL.ink;
         ctx.fillRect(Math.round(cx) - 5, 120, 10, 7);
@@ -330,7 +347,58 @@ function swordsman(ctx: CanvasRenderingContext2D, character: number, x: number, 
   ctx.fillRect(Math.round(hx) - 2, Math.round(hy) - 1, 4, 3);
 }
 
-function drawSword(ctx: CanvasRenderingContext2D, st: DuelState, time: number): void {
+function drawSword(ctx: CanvasRenderingContext2D, st: DuelState, time: number, ui = false): void {
+  const pierY = 132;
+  if (!ui) drawPier(ctx, time);
+  const s = st.sword;
+  const t = st.phaseTime;
+  const decided = st.phase === 'result';
+  const go = st.phase === 'duel' ? t >= s.goAt : true;
+  for (const side of [0, 1] as const) {
+    const c = st.candidates[side === 0 ? st.a : st.b];
+    let x = side === 0 ? 120 : ARENA_W - 120;
+    let y = pierY;
+    if (decided && st.winner === side) {
+      // The winner dashes across with the final cut.
+      const k = Math.min(1, t / 0.25);
+      x += (side === 0 ? 1 : -1) * k * 110;
+    } else if (decided) {
+      // The loser is knocked into the sea.
+      const k = Math.min(1, Math.max(0, (t - 0.2) / 0.6));
+      x += (side === 0 ? -1 : 1) * k * 20;
+      y += k * k * 70;
+    }
+    const swing = s.progress[side] % 2;
+    if (!ui && y < ARENA_H + 20) swordsman(ctx, c.character, x, y, side === 0 ? 1 : -1, swing, s.failed[side] && Math.floor(time * 16) % 2 === 0);
+    if (!ui && decided && st.winner !== side && t > 0.75) {
+      // splash
+      const k = Math.min(1, (t - 0.75) / 0.6);
+      ctx.strokeStyle = `rgba(220,240,255,${1 - k})`;
+      ctx.beginPath();
+      ctx.arc(x, pierY + 58, 4 + k * 18, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    text(ctx, CHARACTERS[c.character].name, side === 0 ? 120 : ARENA_W - 120, pierY + 14, CHARACTERS[c.character].color, 8, 'center');
+
+    // Move sequence above each fighter.
+    if (go) {
+      const cell = 17;
+      const x0 = (side === 0 ? 120 : ARENA_W - 120) - (SWORD_MOVES * cell) / 2 + cell / 2;
+      for (let k = 0; k < SWORD_MOVES; k++) {
+        const done = k < s.progress[side];
+        const current = k === s.progress[side] && !decided;
+        const failedHere = s.failed[side] && k === s.progress[side];
+        const fill = failedHere ? '#ffb0b8' : done ? '#8af08a' : current ? '#fff4c0' : '#e8e4f4';
+        const border = failedHere ? PAL.red : current ? PAL.yellow : PAL.ink;
+        keyCap(ctx, s.seq[k], x0 + k * cell, 48 + (current ? -3 : 0), 15, fill, border, done ? '#1a6a2a' : PAL.ink);
+      }
+    }
+  }
+  if (st.phase === 'duel' && !go) outlinedText(ctx, 'PREPARAR...', ARENA_W / 2, 20, PAL.white, 16);
+  else if (st.phase === 'duel' && t - s.goAt < 0.6) outlinedText(ctx, 'JÁ!', ARENA_W / 2, 10, PAL.red, 32);
+}
+
+function drawPier(ctx: CanvasRenderingContext2D, time: number): void {
   // Sky and sea.
   const sky = ['#5a8ae8', '#6a9af0', '#7aaaf4', '#8ab8f8'];
   sky.forEach((c, i) => {
@@ -364,58 +432,20 @@ function drawSword(ctx: CanvasRenderingContext2D, st: DuelState, time: number): 
     ctx.fillStyle = '#3a2010';
     ctx.fillRect(px - 2, pierY + 10, 4, 40);
   }
-
-  const s = st.sword;
-  const t = st.phaseTime;
-  const decided = st.phase === 'result';
-  const go = st.phase === 'duel' ? t >= s.goAt : true;
-  for (const side of [0, 1] as const) {
-    const c = st.candidates[side === 0 ? st.a : st.b];
-    let x = side === 0 ? 120 : ARENA_W - 120;
-    let y = pierY;
-    if (decided && st.winner === side) {
-      // The winner dashes across with the final cut.
-      const k = Math.min(1, t / 0.25);
-      x += (side === 0 ? 1 : -1) * k * 110;
-    } else if (decided) {
-      // The loser is knocked into the sea.
-      const k = Math.min(1, Math.max(0, (t - 0.2) / 0.6));
-      x += (side === 0 ? -1 : 1) * k * 20;
-      y += k * k * 70;
-    }
-    const swing = s.progress[side] % 2;
-    if (y < ARENA_H + 20) swordsman(ctx, c.character, x, y, side === 0 ? 1 : -1, swing, s.failed[side] && Math.floor(time * 16) % 2 === 0);
-    if (decided && st.winner !== side && t > 0.75) {
-      // splash
-      const k = Math.min(1, (t - 0.75) / 0.6);
-      ctx.strokeStyle = `rgba(220,240,255,${1 - k})`;
-      ctx.beginPath();
-      ctx.arc(x, pierY + 58, 4 + k * 18, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    text(ctx, CHARACTERS[c.character].name, side === 0 ? 120 : ARENA_W - 120, pierY + 14, CHARACTERS[c.character].color, 8, 'center');
-
-    // Move sequence above each fighter.
-    if (go) {
-      const cell = 17;
-      const x0 = (side === 0 ? 120 : ARENA_W - 120) - (SWORD_MOVES * cell) / 2 + cell / 2;
-      for (let k = 0; k < SWORD_MOVES; k++) {
-        const done = k < s.progress[side];
-        const current = k === s.progress[side] && !decided;
-        const failedHere = s.failed[side] && k === s.progress[side];
-        const fill = failedHere ? '#ffb0b8' : done ? '#8af08a' : current ? '#fff4c0' : '#e8e4f4';
-        const border = failedHere ? PAL.red : current ? PAL.yellow : PAL.ink;
-        keyCap(ctx, s.seq[k], x0 + k * cell, 48 + (current ? -3 : 0), 15, fill, border, done ? '#1a6a2a' : PAL.ink);
-      }
-    }
-  }
-  if (st.phase === 'duel' && !go) outlinedText(ctx, 'PREPARAR...', ARENA_W / 2, 20, PAL.white, 16);
-  else if (st.phase === 'duel' && t - s.goAt < 0.6) outlinedText(ctx, 'JÁ!', ARENA_W / 2, 10, PAL.red, 32);
 }
 
 // ---------- Pong ----------
 
-function drawPong(ctx: CanvasRenderingContext2D, st: DuelState): void {
+function drawPong(ctx: CanvasRenderingContext2D, st: DuelState, ui = false): void {
+  if (!ui) drawPongField(ctx, st);
+  for (const side of [0, 1] as const) {
+    const ch = CHARACTERS[st.candidates[side === 0 ? st.a : st.b].character];
+    text(ctx, ch.name, side === 0 ? 40 : ARENA_W - 40, 16, ch.color, 8, side === 0 ? 'left' : 'right');
+  }
+  if (st.phase === 'duel' && st.phaseTime < 0.6) outlinedText(ctx, 'SAQUE!', ARENA_W / 2, ARENA_H / 2 - 20, PAL.yellow, 16);
+}
+
+function drawPongField(ctx: CanvasRenderingContext2D, st: DuelState): void {
   ctx.fillStyle = BRAND.roxo;
   ctx.fillRect(0, 0, ARENA_W, ARENA_H);
   ctx.fillStyle = '#c8c4d8';
@@ -430,22 +460,25 @@ function drawPong(ctx: CanvasRenderingContext2D, st: DuelState): void {
     const y = side === 0 ? p.pa : p.pb;
     ctx.fillStyle = ch.color;
     ctx.fillRect(Math.round(x - (side === 0 ? 4 : 0)), Math.round(y - PONG.half), 4, PONG.half * 2);
-    text(ctx, ch.name, side === 0 ? 40 : ARENA_W - 40, 16, ch.color, 8, side === 0 ? 'left' : 'right');
   }
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(Math.round(p.x - PONG.ballR), Math.round(p.y - PONG.ballR), PONG.ballR * 2, PONG.ballR * 2);
-  if (st.phase === 'duel' && st.phaseTime < 0.6) outlinedText(ctx, 'SAQUE!', ARENA_W / 2, ARENA_H / 2 - 20, PAL.yellow, 16);
 }
 
 export const duelRenderer: MinigameRenderer = {
   render(ctx, raw, time, localId: PlayerId) {
-    const st = raw as DuelState;
-    if (st.phase === 'roulette') return drawWheel(ctx, st, time);
-    if (st.phase === 'intro') return drawIntro(ctx, st, time, localId);
+    drawDuel(ctx, raw as DuelState, time, localId, false);
+  },
+};
 
-    if (st.kind === 'quickdraw') drawQuickDraw(ctx, st, time);
-    else if (st.kind === 'sword') drawSword(ctx, st, time);
-    else drawPong(ctx, st);
+/** Draws the X1; with `ui` only the texts, keys and banners (the 3D version draws the scenes). */
+export function drawDuel(ctx: CanvasRenderingContext2D, st: DuelState, time: number, localId: PlayerId, ui: boolean): void {
+    if (st.phase === 'roulette') return drawWheel(ctx, st, time, ui);
+    if (st.phase === 'intro') return drawIntro(ctx, st, time, localId, ui);
+
+    if (st.kind === 'quickdraw') drawQuickDraw(ctx, st, time, ui);
+    else if (st.kind === 'sword') drawSword(ctx, st, time, ui);
+    else drawPong(ctx, st, ui);
     if (st.phase === 'duel' && st.phaseTime < 1) bets(ctx, st, localId);
 
     if (st.phase === 'result' && st.winner !== -1) {
@@ -458,5 +491,4 @@ export const duelRenderer: MinigameRenderer = {
       const right = st.bets.filter((b) => b.pick === st.winner).length;
       text(ctx, right ? `${right} DA TORCIDA GANHARAM ESCUDO` : 'NINGUÉM DA TORCIDA ACERTOU', ARENA_W / 2, 188, PAL.cyan, 8, 'center');
     }
-  },
-};
+}

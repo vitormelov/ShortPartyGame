@@ -148,7 +148,7 @@ function drawDancer(ctx: CanvasRenderingContext2D, d: Dancer, x: number, y: numb
   }
 }
 
-function dancerPos(i: number, n: number): [number, number] {
+export function dancerPos(i: number, n: number): [number, number] {
   const perRow = Math.ceil(n / 2);
   const row = i < perRow ? 0 : 1;
   const k = row ? i - perRow : i;
@@ -166,12 +166,18 @@ export const danceRenderer: MinigameRenderer = {
 
   render(ctx, raw, time, localId: PlayerId) {
     const st = raw as DanceState;
-    const me = st.dancers.find((d) => d.id === localId && d.status !== 'out');
     drawStage(ctx, st);
     st.dancers.forEach((d, i) => {
       const [x, y] = dancerPos(i, st.dancers.length);
       drawDancer(ctx, d, x, y, st, time, d.id === localId);
     });
+    drawDanceHud(ctx, st, time, localId);
+  },
+};
+
+/** The note highway, BPM, judgement and cringe meter (also drawn over the 3D stage). */
+export function drawDanceHud(ctx: CanvasRenderingContext2D, st: DanceState, time: number, localId: PlayerId): void {
+    const me = st.dancers.find((d) => d.id === localId && d.status !== 'out');
     drawHighway(ctx, st, me, time);
 
     outlinedText(ctx, `${Math.round(st.bpm)} BPM`, STAGE_X + (ARENA_W - STAGE_X) / 2, 30, Math.floor(st.beat) % 2 ? PAL.pink : PAL.cyan, 8);
@@ -189,5 +195,4 @@ export const danceRenderer: MinigameRenderer = {
       ctx.fillRect(HW_X, 4, Math.round(w * me.cringe), 6);
       text(ctx, 'CRINGE', HW_X + w + 8, 3, me.cringe > 0.66 && Math.floor(time * 8) % 2 ? PAL.red : PAL.grey, 8);
     }
-  },
-};
+}

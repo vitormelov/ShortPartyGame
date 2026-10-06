@@ -90,7 +90,7 @@ function drawInfluencer(ctx: CanvasRenderingContext2D, st: MimicState, time: num
   ctx.fillRect(x - 13, y - 21 - bob, 3, 5);
 }
 
-function drawSign(ctx: CanvasRenderingContext2D, st: MimicState, time: number): void {
+export function drawSign(ctx: CanvasRenderingContext2D, st: MimicState, time: number): void {
   const opp = st.opposite && st.phase !== 'wait';
   panel(ctx, SIGN.x, SIGN.y, SIGN.w, SIGN.h, opp ? '#ffe0e4' : '#fff4e0', opp ? PAL.red : PAL.ink);
   const cx = SIGN.x + SIGN.w / 2;

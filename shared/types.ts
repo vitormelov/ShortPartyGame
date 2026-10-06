@@ -66,7 +66,11 @@ export type GameEvent =
   | { type: 'shieldUsed'; player: PlayerId }
   | { type: 'gameOver'; winners: PlayerId[] };
 
+/** feed: the normal match (clips, returns, ads...). minigame: one minigame, elimination, no cuts. */
+export type MatchMode = 'feed' | 'minigame';
+
 export interface MatchConfig {
+  mode: MatchMode;
   lives: number;
   clipMin: number; // seconds
   clipMax: number;
@@ -84,6 +88,7 @@ export interface MatchConfig {
 }
 
 export const DEFAULT_CONFIG: MatchConfig = {
+  mode: 'feed',
   lives: 5,
   clipMin: 5,
   clipMax: 8,

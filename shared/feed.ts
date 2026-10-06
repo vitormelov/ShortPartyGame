@@ -1,11 +1,11 @@
-﻿import type { Minigame, MinigameDef } from './minigame';
+import type { Minigame, MinigameDef } from './minigame';
 import { AD_DEF, MINIGAMES } from './minigames';
 import { MemoDoDef, MemoTellDef, createMemoAd, randomSequence, type MoveSequence } from './minigames/memo/logic';
 import { PollDef, createPoll, type PollKind } from './minigames/poll/logic';
 import { DuelDef, createDuel } from './minigames/duel/logic';
 import { ASSIST_WINDOW, CHARGE_EVERY, COMMENT_COST, COMMENT_LIFE, HATER_MENU, MAX_CHARGE, MAX_COMMENTS, type HaterComment, type HaterPanel } from './haters';
 import { Rng } from './rng';
-import type { BotDifficulty, GameEvent, MatchConfig, PlayerId, PlayerInfo, PlayerInput, TickInput } from './types';
+import type { BotDifficulty, GameEvent, MatchConfig, MatchMode, PlayerId, PlayerInfo, PlayerInput, TickInput } from './types';
 import { NEUTRAL_INPUT } from './types';
 
 export type FeedPhase = 'countdown' | 'swipe' | 'preview' | 'play' | 'over';
@@ -27,6 +27,10 @@ const BOT_FORGET: Record<BotDifficulty, number> = { easy: 0.45, medium: 0.3, har
 /** Heat starts rising after this many seconds and maxes out HEAT_RAMP seconds later. */
 const HEAT_START = 120;
 const HEAT_RAMP = 180;
+/** Minigames mode: the heat climbs from the start so every match really ends. */
+const MINIGAME_HEAT_RAMP = 90;
+/** Minigames mode: the frozen first frame of a new round. */
+const ROUND_PREVIEW = 1.2;
 /** Fast-forward speeds, like holding the screen on a reel. Weighted toward the milder ones. */
 const SPEEDS: ReadonlyArray<readonly [number, number]> = [
   [1.25, 0.45],
@@ -94,6 +98,9 @@ export interface FeedSnapshot {
   /** Players holding a shield (won by betting right on an X1): it absorbs their next life lost. */
   shields: PlayerId[];
   tutorials: boolean;
+  mode: MatchMode;
+  /** Minigames mode: the current round (round-based games start over with the survivors). */
+  round: number;
   /** Hater-mode comments currently on screen. */
   comments: HaterComment[];
   /** Hater panels of eliminated players (their selected comment, target and charge). */
@@ -145,11 +152,17 @@ export class FeedDirector {
   private eliminationOrder: PlayerId[] = [];
   private eliminatedThisTick: PlayerId[] = [];
 
+  /** Minigames mode: deaths since the round started. */
+  private roundDeaths = 0;
+  private round = 1;
+
   constructor(infos: PlayerInfo[], private config: MatchConfig, seed: number) {
     this.rng = new Rng(seed);
+    // Minigames mode is elimination: one life, last one standing wins.
+    if (config.mode === 'minigame') this.config = { ...config, lives: 1 };
     this.players = infos.map((info) => ({
       info,
-      lives: config.lives,
+      lives: this.config.lives,
       eliminated: false,
       stats: { deaths: 0, flops: 0, fastestFlop: Infinity, bonusLives: 0, assists: 0 },
     }));
@@ -170,7 +183,12 @@ export class FeedDirector {
     return this.players.filter((p) => !p.eliminated);
   }
 
+  private get minigameMode(): boolean {
+    return this.config.mode === 'minigame' && !!this.config.onlyGame;
+  }
+
   private get heat(): number {
+    if (this.minigameMode) return Math.min(1, this.matchTime / MINIGAME_HEAT_RAMP + (this.endgame ? 0.2 : 0));
     const base = Math.max(0, Math.min(1, (this.matchTime - HEAT_START) / HEAT_RAMP));
     return Math.min(1, base + (this.endgame ? 0.3 : 0));
   }
@@ -219,6 +237,15 @@ export class FeedDirector {
   }
 
   private startPlay(): void {
+    if (this.minigameMode) {
+      // No clips: the minigame plays until it's really over.
+      this.clipDuration = Infinity;
+      this.clipTime = 0;
+      this.notification = 0;
+      this.notifAt = -1;
+      this.setPhase('play', Infinity);
+      return;
+    }
     const scale = this.endgame ? 0.7 : 1;
     const fixed = this.current?.game.fixedDuration?.();
     this.clipDuration = fixed ?? this.rng.range(this.config.clipMin, this.config.clipMax) * scale;
@@ -236,7 +263,7 @@ export class FeedDirector {
   private playTick(dt: number): void {
     const clip = this.current!;
     this.clipTime += dt;
-    this.haterTick(dt);
+    if (!this.minigameMode) this.haterTick(dt);
     this.notification = Math.max(0, this.notification - dt);
     if (this.notifAt >= 0 && this.clipTime >= this.notifAt) {
       this.notifAt = -1;
@@ -273,7 +300,38 @@ export class FeedDirector {
     if (this.eliminatedThisTick.length > 0) this.checkGameOver();
 
     if (this.phase === 'over') return;
+    if (this.minigameMode) {
+      // Only a real round end counts (not the time cap the feed uses to retire a clip).
+      if (clip.def.rounds && clip.game.isFinished()) this.nextRound();
+      return;
+    }
     if (this.clipTime >= this.clipDuration || clip.game.isFinished()) this.endClip();
+  }
+
+  /** Minigames mode: a round ended; if nobody died, the game says who goes out. Then a new round. */
+  private nextRound(): void {
+    const clip = this.current!;
+    if (this.roundDeaths === 0) {
+      this.eliminatedThisTick = [];
+      for (const id of clip.game.roundLosers?.() ?? []) {
+        const p = this.players.find((q) => q.info.id === id);
+        if (p && !p.eliminated) {
+          p.lives = 0;
+          p.stats.deaths++;
+          this.events.push({ type: 'lifeLost', player: id, lives: 0, onReturn: false });
+          this.eliminate(p);
+        }
+      }
+      if (this.eliminatedThisTick.length > 0) this.checkGameOver();
+      if (this.phase === 'over') return;
+    }
+    this.roundDeaths = 0;
+    this.round++;
+    this.clips = [];
+    this.current = this.newClip(clip.def);
+    this.isReturn = false;
+    this.setPhase('preview', ROUND_PREVIEW);
+    this.events.push({ type: 'clipStart', isReturn: false, speed: 1 });
   }
 
   private handleEvent(e: GameEvent): void {
@@ -287,6 +345,7 @@ export class FeedDirector {
         }
         p.lives--;
         p.stats.deaths++;
+        this.roundDeaths++;
         const onReturn = this.isReturn && this.clipTime < FLOP_WINDOW;
         if (onReturn) {
           p.stats.flops++;
@@ -434,7 +493,8 @@ export class FeedDirector {
     this.eliminationOrder.push(p.info.id);
     for (const c of this.clips) c.game.removePlayer(p.info.id);
     this.eliminatedThisTick.push(p.info.id);
-    this.haters.set(p.info.id, { id: p.info.id, charge: 1, menu: 0, target: -1, dir: -1 });
+    // Minigames mode has no interruptions, so no hater comments either.
+    if (!this.minigameMode) this.haters.set(p.info.id, { id: p.info.id, charge: 1, menu: 0, target: -1, dir: -1 });
     this.events.push({ type: 'eliminated', player: p.info.id });
   }
 
@@ -464,6 +524,10 @@ export class FeedDirector {
 
   private pickNext(): Clip {
     const current = this.current;
+    if (this.minigameMode) {
+      this.isReturn = false;
+      return this.newClip(MINIGAMES.find((d) => d.id === this.config.onlyGame)!);
+    }
     const returnable = this.clips.filter((c) => c !== current && !c.game.isFinished());
     const activeDefs = new Set(this.clips.map((c) => c.def.id));
     // Recently started games wait a few clips before being picked fresh again (one-round games like
@@ -593,6 +657,8 @@ export class FeedDirector {
       betActive: !!this.pendingBet,
       shields: [...this.shields],
       tutorials: this.config.tutorials,
+      mode: this.minigameMode ? 'minigame' : 'feed',
+      round: this.round,
       comments: this.comments,
       haters: [...this.haters.values()],
       winners: this.winners,

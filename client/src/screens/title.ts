@@ -1,11 +1,13 @@
 import { SCREEN_H, SCREEN_W } from '@shared/arena';
 import { CHARACTERS } from '@shared/types';
 import { drawCharacter } from '../core/cast';
+import { menuWorld } from '../three/menuworld';
+import { Showcase } from '../three/showcase';
 import { PAL, heart, outlinedText, panel, text } from '../core/draw';
 import { drawAlgoritmo } from '../feed/algoritmo';
 import type { App, Screen } from './screen';
 import { OptionsScreen } from './options';
-import { SelectScreen } from './select';
+import { playMenu } from './menus';
 
 const CARDS = [
   { name: 'KART RUSH', color: '#e83b3b' },
@@ -30,10 +32,11 @@ const CARDS = [
   { name: 'ANÚNCIO', color: '#3b6ee8' },
 ];
 
-const MENU = ['JOGAR SOLO', 'MULTIPLAYER', 'OPÇÕES'] as const;
+const MENU = ['JOGAR', 'OPÇÕES'] as const;
 
 export class TitleScreen implements Screen {
   private t = 0;
+  private showcase: Showcase | null = null;
   private item = 0;
 
   constructor(private app: App) {
@@ -60,12 +63,20 @@ export class TitleScreen implements Screen {
         this.app.go(new OptionsScreen(this.app));
       } else {
         this.app.sfx.play('jingle');
-        this.app.go(new SelectScreen(this.app, choice === 'MULTIPLAYER' ? 'multi' : 'solo'));
+        this.app.go(playMenu(this.app));
       }
     }
   }
 
   render(ctx: CanvasRenderingContext2D): void {
+    const world = menuWorld();
+    if (world) {
+      // 3D: the island with the cast, the logo sign and the menu slabs.
+      world.draw(ctx, this.t, 'title', { labels: MENU, selected: this.item, logo: true });
+      panel(ctx, 0, SCREEN_H - 14, 190, 14, 'rgba(10,6,20,0.7)', 'rgba(10,6,20,0)');
+      text(ctx, 'W/S ESCOLHE  ESPAÇO CONFIRMA', 4, SCREEN_H - 10, PAL.white);
+      return;
+    }
     ctx.fillStyle = PAL.night;
     ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
     for (let y = 0; y < SCREEN_H; y += 6) {
@@ -92,6 +103,7 @@ export class TitleScreen implements Screen {
     ctx.beginPath();
     ctx.rect(px, py, pw, ph);
     ctx.clip();
+    const show = Showcase.enabled() ? (this.showcase ??= new Showcase()) : null;
     for (let k = 0; k < 2; k++) {
       const card = CARDS[(step + k - 1 + CARDS.length) % CARDS.length];
       const oy = py + (k - swipe) * ph;
@@ -99,11 +111,14 @@ export class TitleScreen implements Screen {
       ctx.fillRect(px, oy, pw, ph);
       ctx.fillStyle = 'rgba(20,6,46,0.25)';
       for (let y = 0; y < ph; y += 8) ctx.fillRect(px, oy + y, pw, 4);
-      drawCharacter(ctx, (step + k) % CHARACTERS.length, px + pw / 2, oy + 90, { size: 48, pose: 'win', frame: Math.floor(this.t * 4) % 2, time: this.t });
+      const who = (step + k) % CHARACTERS.length;
+      if (show) show.add({ character: who, x: px + pw / 2, y: oy + 88, height: 44, hop: Math.abs(Math.sin(this.t * 5)) * 3, heading: Math.sin(this.t * 2) * 0.6, dance: true });
+      else drawCharacter(ctx, who, px + pw / 2, oy + 90, { size: 48, pose: 'win', frame: Math.floor(this.t * 4) % 2, time: this.t });
       text(ctx, card.name, px + pw / 2, oy + 96, PAL.white, 8, 'center');
       heart(ctx, px + pw - 14, oy + 120);
       text(ctx, `${(((step + k) * 37) % 90) + 9}K`, px + pw - 2, oy + 129, PAL.white, 8, 'right');
     }
+    show?.flush(ctx, this.t);
     ctx.restore();
     ctx.fillStyle = PAL.white;
     ctx.fillRect(px + 4, py + 4, Math.floor((pw - 8) * frac), 2);

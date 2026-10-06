@@ -1,13 +1,15 @@
 import { SCREEN_H, SCREEN_W } from '@shared/arena';
 import { MINIGAMES } from '@shared/minigames';
-import { CHARACTERS, DEFAULT_CONFIG, MIN_PLAYERS, type BotDifficulty, type MatchConfig, type PlayerInfo } from '@shared/types';
+import { CHARACTERS, DEFAULT_CONFIG, MIN_PLAYERS, type BotDifficulty, type MatchConfig, type MatchMode, type PlayerInfo } from '@shared/types';
 import { drawCharacter, drawPortrait } from '../core/cast';
+import { menuWorld } from '../three/menuworld';
+import { Showcase } from '../three/showcase';
 import { BRAND, PAL, heart, outlinedText, panel, text } from '../core/draw';
 import { tiny } from '../feed/hud';
 import { LocalTransport } from '../net/LocalTransport';
 import { GameScreen } from './game';
 import type { App, Screen } from './screen';
-import { TitleScreen } from './title';
+import { createRoomMenu, soloMenu } from './menus';
 
 /*
  * Character select in the Mario Kart 64 style: a grid of faces, the player's "1P" cursor, the
@@ -44,11 +46,12 @@ const SPEED_OPTIONS = [
   { label: 'ÀS VEZES', value: 0.2 },
   { label: 'MUITO', value: 0.45 },
 ];
-const GAME_OPTIONS = ['TODOS', ...MINIGAMES.map((d) => d.name)];
 
 /** Settings survive between matches (revanche). */
 interface Setup {
   mode: Mode;
+  /** Modo padrão (the feed) or modo minigames (one minigame, elimination). */
+  matchMode: MatchMode;
   /** The local player's character, once picked. */
   me: number | null;
   /** Bot difficulty on each character (null = not playing). */
@@ -58,16 +61,17 @@ interface Setup {
   ret: number;
   speed: number;
   ads: number;
-  /** 0 = every minigame (normal feed); n = only MINIGAMES[n - 1] (test mode). */
+  /** Modo minigames: index into MINIGAMES. */
   game: number;
   tutorials: boolean;
 }
 
 let saved: Setup | null = null;
 
-function defaultSetup(mode: Mode): Setup {
+function defaultSetup(mode: Mode, matchMode: MatchMode): Setup {
   return {
     mode,
+    matchMode,
     me: null,
     bots: CHARACTERS.map(() => null),
     lives: DEFAULT_CONFIG.lives,
@@ -89,42 +93,62 @@ const GRID_Y = 26;
 const cardX = (i: number) => GRID_X + (i % COLS) * (CARD_W + 4);
 const cardY = (i: number) => GRID_Y + Math.floor(i / COLS) * (CARD_H + 4);
 
-// Options rows (the last one is INICIAR).
-const OPTION_ROWS = ['VIDAS', 'CLIPE', 'RETORNO', 'ACELERAR', 'ANÚNCIOS', 'JOGO', 'TUTORIAL', 'INICIAR'] as const;
-const START_ROW = OPTION_ROWS.length - 1;
+// Options rows per mode (the last one is INICIAR).
+const FEED_ROWS = ['VIDAS', 'CLIPE', 'RETORNO', 'ACELERAR', 'ANÚNCIOS', 'TUTORIAL', 'INICIAR'] as const;
+const MINIGAME_ROWS = ['MINIGAME', 'TUTORIAL', 'INICIAR'] as const;
+type OptionRow = (typeof FEED_ROWS)[number] | (typeof MINIGAME_ROWS)[number];
 
-/** A fake room code for the multiplayer lobby (online play comes in phase 2). */
+/** Room codes: no 0/O or 1/I, so they're easy to read out loud. */
+export const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+export const ROOM_CODE_LENGTH = 4;
+
+/** A random room code for CRIAR SALA (connecting needs the online server, coming in phase 2). */
 function roomCode(): string {
-  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  return Array.from({ length: 4 }, () => A[Math.floor(Math.random() * A.length)]).join('');
+  return Array.from({ length: ROOM_CODE_LENGTH }, () => ROOM_ALPHABET[Math.floor(Math.random() * ROOM_ALPHABET.length)]).join('');
 }
 
 export class SelectScreen implements Screen {
   private setup: Setup;
   private phase: Phase;
   private cursor = 0;
-  private row = START_ROW;
+  private row = 0;
   private t = 0;
+  private show3d: Showcase | null = null;
+  private show: Showcase | null = null;
   private warn = 0;
   /** Seconds since the player locked in their character (victory pose + flash). */
   private picked = 99;
   private code = roomCode();
 
-  constructor(private app: App, mode?: Mode) {
+  constructor(private app: App, mode?: Mode, matchMode: MatchMode = 'feed') {
     app.music.rate = 1;
     app.music.tension = 0;
     app.music.heat = 0;
     app.music.setMuffled(false);
     app.music.play('theme', 'menu');
-    if (saved && (!mode || mode === saved.mode)) {
+    if (saved && (!mode || mode === saved.mode) && saved.matchMode === matchMode) {
       // Revanche: same cast, straight to the options with INICIAR selected.
       this.setup = saved;
       this.phase = saved.me === null ? 'pick' : 'options';
       this.cursor = saved.me ?? 0;
     } else {
-      this.setup = defaultSetup(mode ?? 'solo');
+      this.setup = defaultSetup(mode ?? 'solo', matchMode);
       this.phase = 'pick';
     }
+    this.row = this.startRow;
+  }
+
+  private get rows(): readonly OptionRow[] {
+    return this.setup.matchMode === 'minigame' ? MINIGAME_ROWS : FEED_ROWS;
+  }
+
+  private get startRow(): number {
+    return this.rows.length - 1;
+  }
+
+  /** ESC from the character grid: back to the menu this came from. */
+  private leave(): void {
+    this.app.go(this.setup.mode === 'multi' ? createRoomMenu(this.app) : soloMenu(this.app));
   }
 
   private get botCount(): number {
@@ -178,7 +202,7 @@ export class SelectScreen implements Screen {
           this.app.sfx.play('confirm');
           this.app.sfx.voice(c, 6);
         } else if (inp.pressed('back')) {
-          this.app.go(new TitleScreen(this.app));
+          this.leave();
         }
         break;
       case 'bots':
@@ -207,17 +231,17 @@ export class SelectScreen implements Screen {
           break;
         }
         if (ud) {
-          this.row = Math.max(0, Math.min(START_ROW, this.row + ud));
+          this.row = Math.max(0, Math.min(this.startRow, this.row + ud));
           move();
         }
-        const name = OPTION_ROWS[this.row];
+        const name = this.rows[this.row];
         if (lr) {
           if (name === 'VIDAS') s.lives = Math.max(1, Math.min(9, s.lives + lr));
           else if (name === 'CLIPE') s.clip = (s.clip + lr + CLIP_OPTIONS.length) % CLIP_OPTIONS.length;
           else if (name === 'RETORNO') s.ret = (s.ret + lr + RETURN_OPTIONS.length) % RETURN_OPTIONS.length;
           else if (name === 'ACELERAR') s.speed = (s.speed + lr + SPEED_OPTIONS.length) % SPEED_OPTIONS.length;
           else if (name === 'ANÚNCIOS') s.ads = (s.ads + lr + AD_OPTIONS.length) % AD_OPTIONS.length;
-          else if (name === 'JOGO') s.game = (s.game + lr + GAME_OPTIONS.length) % GAME_OPTIONS.length;
+          else if (name === 'MINIGAME') s.game = (s.game + lr + MINIGAMES.length) % MINIGAMES.length;
           else if (name === 'TUTORIAL') s.tutorials = !s.tutorials;
           if (name !== 'INICIAR') move();
         }
@@ -254,19 +278,23 @@ export class SelectScreen implements Screen {
       if (d) players.push({ id: players.length, name: CHARACTERS[c].name, character: c, isBot: true, difficulty: d });
     });
     const clip = CLIP_OPTIONS[s.clip];
+    const minigames = s.matchMode === 'minigame';
     const config: MatchConfig = {
       ...DEFAULT_CONFIG,
+      mode: s.matchMode,
       lives: s.lives,
       clipMin: clip.min,
       clipMax: clip.max,
       returnChance: RETURN_OPTIONS[s.ret].value,
       speedChance: SPEED_OPTIONS[s.speed].value,
       adChance: AD_OPTIONS[s.ads].value,
-      onlyGame: s.game > 0 ? MINIGAMES[s.game - 1].id : null,
+      onlyGame: minigames ? MINIGAMES[s.game % MINIGAMES.length].id : null,
       tutorials: s.tutorials,
     };
     this.app.sfx.play('go');
-    this.app.go(new GameScreen(this.app, new LocalTransport(players, config, 0)));
+    // REPETIR PARTIDA (minigames mode) starts the same match again.
+    const launch = (): Screen => new GameScreen(this.app, new LocalTransport(players, config, 0), launch);
+    this.app.go(launch());
   }
 
   // ---------- drawing ----------
@@ -278,16 +306,22 @@ export class SelectScreen implements Screen {
     outlinedText(ctx, 'QUEM VAI POSTAR?', 237, 6, PAL.yellow, 16);
     if (s.mode === 'multi') {
       panel(ctx, 6, 5, 84, 15, PAL.ink, BRAND.ciano);
-      tiny(ctx, 'SALA', 11, 7, BRAND.ciano, 'left', null);
+      tiny(ctx, 'SENHA', 11, 7, BRAND.ciano, 'left', null);
       text(ctx, this.code, 30, 8, PAL.white);
-      tiny(ctx, 'ONLINE EM BREVE', 11, 14, PAL.grey, 'left', null);
+      tiny(ctx, s.matchMode === 'minigame' ? 'MODO MINIGAMES' : 'MODO PADRÃO', 11, 14, PAL.grey, 'left', null);
     } else {
       panel(ctx, 6, 5, 84, 15, PAL.ink, PAL.panelLight);
-      text(ctx, 'SOLO', 48, 8, PAL.white, 8, 'center');
+      tiny(ctx, 'SOLO', 48, 7, PAL.white, 'center', null);
+      tiny(ctx, s.matchMode === 'minigame' ? 'MODO MINIGAMES' : 'MODO PADRÃO', 48, 13, BRAND.ciano, 'center', null);
     }
 
+    this.show = Showcase.enabled() ? (this.show3d ??= new Showcase()) : null;
     this.showcase(ctx);
     for (let i = 0; i < CHARACTERS.length; i++) this.card(ctx, i);
+    if (this.show) {
+      this.show.flush(ctx, this.t);
+      for (let i = 0; i < CHARACTERS.length; i++) this.cardTags(ctx, i);
+    }
 
     // What the cursor does right now.
     const hint =
@@ -304,6 +338,14 @@ export class SelectScreen implements Screen {
   }
 
   private background(ctx: CanvasRenderingContext2D): void {
+    const world = menuWorld();
+    if (world) {
+      // The island behind, dimmed so the cards and options read well.
+      world.draw(ctx, this.t, 'select');
+      ctx.fillStyle = 'rgba(16,6,36,0.62)';
+      ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+      return;
+    }
     ctx.fillStyle = PAL.night;
     ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
     // Diagonal stripes drifting, like the N64 menus.
@@ -349,14 +391,29 @@ export class SelectScreen implements Screen {
     ctx.fillRect(x + w / 2 - 30, y + 78, 60, 1);
     const locked = this.phase !== 'pick' && s.me !== null;
     const celebrate = locked && this.picked < 1.6;
-    drawCharacter(ctx, c, x + w / 2, y + 80, {
-      size: 74,
-      pose: celebrate ? 'win' : 'idle',
-      frame: Math.floor(this.t * (celebrate ? 6 : 2)) % 2,
-      time: this.t,
-      sy: celebrate && this.picked < 0.15 ? 0.85 : 1,
-      sx: celebrate && this.picked < 0.15 ? 1.12 : 1,
-    });
+    if (this.show) {
+      // The big 3D model on its little stage: turning slowly, spinning and hopping when picked.
+      this.show.add({
+        key: 100 + c,
+        character: c,
+        x: x + w / 2,
+        y: y + 80,
+        height: 66,
+        heading: celebrate ? this.picked * 14 : Math.sin(this.t * 1.1) * 0.7,
+        hop: celebrate ? Math.abs(Math.sin(this.picked * 9)) * 8 : 0,
+        dance: celebrate,
+      });
+      this.show.flush(ctx, this.t);
+    } else {
+      drawCharacter(ctx, c, x + w / 2, y + 80, {
+        size: 74,
+        pose: celebrate ? 'win' : 'idle',
+        frame: Math.floor(this.t * (celebrate ? 6 : 2)) % 2,
+        time: this.t,
+        sy: celebrate && this.picked < 0.15 ? 0.85 : 1,
+        sx: celebrate && this.picked < 0.15 ? 1.12 : 1,
+      });
+    }
     if (celebrate && this.picked < 0.2) {
       ctx.fillStyle = `rgba(255,244,224,${1 - this.picked / 0.2})`;
       ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
@@ -382,8 +439,23 @@ export class SelectScreen implements Screen {
     ctx.fillStyle = dim ? '#3a2a50' : ch.color;
     ctx.fillRect(x + 1, y + CARD_H - 9, CARD_W - 2, 8);
     const face = this.phase === 'pick' && onCursor ? 'win' : 'idle';
-    drawPortrait(ctx, i, x + (CARD_W - 32) / 2, y + 2, 2, dim, face, this.t);
+    if (this.show && !dim) {
+      // Little 3D figure in the card; the one under the cursor cheers.
+      this.show.add({ character: i, x: x + CARD_W / 2, y: y + CARD_H - 9, height: 33, hop: face === 'win' ? Math.abs(Math.sin(this.t * 8)) * 3 : 0, dance: face === 'win' });
+    } else drawPortrait(ctx, i, x + (CARD_W - 32) / 2, y + 2, 2, dim, face, this.t);
     tiny(ctx, ch.name, x + CARD_W / 2, y + CARD_H - 7, dim ? PAL.grey : PAL.ink, 'center', null);
+    // With 3D figures the tags go on after the figures are drawn (cardTags), so heads don't cover them.
+    if (!this.show) this.cardTags(ctx, i);
+  }
+
+  /** 1P / CPU + difficulty tags and the cursor frame on a card. */
+  private cardTags(ctx: CanvasRenderingContext2D, i: number): void {
+    const s = this.setup;
+    const x = cardX(i);
+    const y = cardY(i);
+    const mine = s.me === i;
+    const bot = s.bots[i];
+    const onCursor = (this.phase === 'pick' || this.phase === 'bots') && this.cursor === i;
     if (mine) {
       panel(ctx, x + 2, y + 2, 13, 8, BRAND.rosa, PAL.white);
       tiny(ctx, '1P', x + 8.5, y + 4, PAL.white, 'center', null);
@@ -410,41 +482,48 @@ export class SelectScreen implements Screen {
     const s = this.setup;
     const active = this.phase === 'options';
     const y0 = 136;
+    const minigames = s.matchMode === 'minigame';
     panel(ctx, 6, y0, 372, 74, active ? PAL.panel : '#1a0c34', active ? PAL.panelLight : '#2a1450');
-    tiny(ctx, 'OPÇÕES DA PARTIDA', 12, y0 + 3, active ? BRAND.ciano : PAL.grey, 'left', null);
+    tiny(ctx, minigames ? 'MODO MINIGAMES: UM SÓ, ATÉ SOBRAR UM' : 'OPÇÕES DA PARTIDA', 12, y0 + 3, active ? BRAND.ciano : PAL.grey, 'left', null);
+    const def = MINIGAMES[s.game % MINIGAMES.length];
     const values: Record<string, string> = {
       VIDAS: `${s.lives}`,
       CLIPE: CLIP_OPTIONS[s.clip].label,
       RETORNO: RETURN_OPTIONS[s.ret].label,
       ACELERAR: SPEED_OPTIONS[s.speed].label,
-      ANÚNCIOS: s.game > 0 ? '-' : AD_OPTIONS[s.ads].label,
-      JOGO: GAME_OPTIONS[s.game],
+      ANÚNCIOS: AD_OPTIONS[s.ads].label,
+      MINIGAME: def.name,
       TUTORIAL: s.tutorials ? 'LIGADO' : 'DESLIGADO',
     };
-    OPTION_ROWS.slice(0, START_ROW).forEach((name, i) => {
-      const col = i < 4 ? 0 : 1;
+    this.rows.slice(0, this.startRow).forEach((name, i) => {
+      // Feed: two columns of options. Minigames: one wide row per option.
+      const col = minigames ? 0 : i < 4 ? 0 : 1;
       const x = col === 0 ? 14 : 190;
-      const y = y0 + 12 + (i % 4) * 15;
+      const y = y0 + 12 + (minigames ? i * 26 : (i % 4) * 15);
+      const w = minigames ? 360 : 172;
       const sel = active && this.row === i;
       if (sel) {
         ctx.fillStyle = '#3a1a6a';
-        ctx.fillRect(x - 4, y - 3, 172, 13);
+        ctx.fillRect(x - 4, y - 3, w, 13);
       }
       text(ctx, name, x, y, sel ? PAL.yellow : active ? PAL.white : PAL.grey);
       const v = values[name];
-      text(ctx, sel ? `< ${v} >` : v, x + 118, y, sel ? PAL.yellow : active ? BRAND.ciano : PAL.grey, 8, 'center');
+      text(ctx, sel ? `< ${v} >` : v, minigames ? x + 210 : x + 118, y, sel ? PAL.yellow : active ? BRAND.ciano : PAL.grey, 8, 'center');
       if (name === 'VIDAS') heart(ctx, x + 148, y);
+      if (name === 'MINIGAME') tiny(ctx, def.hint, x, y + 12, PAL.grey, 'left', null);
     });
 
     // INICIAR.
-    const sel = active && this.row === START_ROW;
+    const sel = active && this.row === this.startRow;
     const blink = sel && Math.floor(this.t * 4) % 2 === 0;
     const bx = 286;
     const by = y0 + 52;
     panel(ctx, bx, by, 86, 18, blink ? BRAND.rosa : sel ? '#c8206a' : PAL.panel, sel ? PAL.white : PAL.panelLight);
     text(ctx, 'INICIAR', bx + 43, by + 5, sel ? PAL.white : PAL.grey, 8, 'center');
     if (this.warn > 0) tiny(ctx, `MÍNIMO ${MIN_PLAYERS} JOGADORES: ADICIONE BOTS`, bx - 4, by + 7, PAL.red, 'right', null);
-    else if (s.game > 0) tiny(ctx, 'MODO TESTE', bx - 4, by + 7, PAL.pink, 'right', null);
+    else if (s.mode === 'multi') tiny(ctx, 'ONLINE EM BREVE: POR ENQUANTO JOGA AQUI COM BOTS', bx - 4, by + 7, PAL.pink, 'right', null);
+    else if (minigames) tiny(ctx, '1 VIDA · SEM CORTES · ÚLTIMO VIVO VENCE', bx - 4, by + 7, PAL.pink, 'right', null);
   }
+
 }
 

@@ -1,4 +1,4 @@
-﻿import type { BotDifficulty, GameEvent, PlayerId, PlayerInfo, PlayerInput, TickInput } from './types';
+import type { BotDifficulty, GameEvent, PlayerId, PlayerInfo, PlayerInput, TickInput } from './types';
 
 /**
  * A minigame instance. All of its state must live in `state` as plain data, so it can be
@@ -16,6 +16,8 @@ export interface Minigame<S = unknown> {
   /** A player lost their last life: remove them from this instance. */
   removePlayer(id: PlayerId): void;
   isFinished(): boolean;
+  /** Round-based games (see MinigameDef.rounds): who goes out if a round ends with no deaths. */
+  roundLosers?(): PlayerId[];
   /** Clips with a scripted length (like the ad) override the random clip duration. */
   fixedDuration?(): number;
   drainEvents(): GameEvent[];
@@ -31,6 +33,11 @@ export interface MinigameDef {
   hint: string;
   /** Feed events (ads): never returned to, always 1x speed, never two in a row. */
   feedEvent?: boolean;
+  /**
+   * isFinished() means a round really ended (not just the time cap): in the minigames mode a new
+   * round starts with the survivors.
+   */
+  rounds?: boolean;
   create(players: PlayerInfo[], seed: number): Minigame;
 }
 

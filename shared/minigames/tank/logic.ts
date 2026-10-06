@@ -119,6 +119,8 @@ class FlameWar implements Minigame<ShipState> {
   readonly defId = 'tank';
   readonly state: ShipState;
   private events: GameEvent[] = [];
+  /** Seconds until the next asteroid blows up (late in a match). */
+  private crumble = 5;
   private rng: Rng;
   private botMem = new Map<PlayerId, BotMemory>();
 
@@ -170,6 +172,16 @@ class FlameWar implements Minigame<ShipState> {
     st.time += dt;
     for (const b of st.booms) b.t += dt;
     st.booms = st.booms.filter((b) => b.t < 0.5);
+    // Late in a match the asteroids start blowing up one by one: no hiding forever.
+    if (heat > 0.7 && st.asteroids.length > 0) {
+      this.crumble -= dt;
+      if (this.crumble <= 0) {
+        this.crumble = 5;
+        const a = st.asteroids.splice(this.rng.int(st.asteroids.length), 1)[0];
+        st.booms.push({ x: a.x, y: a.y, t: 0, big: true });
+        this.events.push({ type: 'sfx', name: 'explosion' });
+      }
+    }
 
     for (const s of st.ships) {
       if (s.status === 'dead') s.deathAnim = Math.max(0, s.deathAnim - dt);

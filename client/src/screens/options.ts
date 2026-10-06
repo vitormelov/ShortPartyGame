@@ -1,12 +1,13 @@
 import { SCREEN_H, SCREEN_W } from '@shared/arena';
 import { PAL, outlinedText, panel, text } from '../core/draw';
 import { loadSettings, saveSettings } from '../core/settings';
+import { menuWorld } from '../three/menuworld';
 import type { App, Screen } from './screen';
 import { TitleScreen } from './title';
 
-const ROWS = ['VOLUME', 'TELA CHEIA', 'VOLTAR'] as const;
+const ROWS = ['VOLUME', 'TELA CHEIA', 'VISUAL 3D', 'PERSONAGENS 3D', 'VOLTAR'] as const;
 
-/** OPÇÕES: sound volume and fullscreen. */
+/** OPÇÕES: sound volume, fullscreen, 3D on/off and which 3D cast. */
 export class OptionsScreen implements Screen {
   private t = 0;
   private row = 0;
@@ -38,6 +39,14 @@ export class OptionsScreen implements Screen {
       if (document.fullscreenElement) void document.exitFullscreen?.();
       else void document.documentElement.requestFullscreen?.().catch(() => {});
       this.app.sfx.play('confirm');
+    } else if (row === 'VISUAL 3D' && (lr || inp.pressed('action'))) {
+      this.settings.visual3d = !this.settings.visual3d;
+      saveSettings(this.settings);
+      this.app.sfx.play('confirm');
+    } else if (row === 'PERSONAGENS 3D' && (lr || inp.pressed('action'))) {
+      this.settings.cast3d = this.settings.cast3d === 'trupe' ? 'emoji' : 'trupe';
+      saveSettings(this.settings);
+      this.app.sfx.play('confirm');
     } else if ((row === 'VOLTAR' && inp.pressed('action')) || inp.pressed('back')) {
       this.app.sfx.play('menu');
       this.app.go(new TitleScreen(this.app));
@@ -45,16 +54,24 @@ export class OptionsScreen implements Screen {
   }
 
   render(ctx: CanvasRenderingContext2D): void {
-    ctx.fillStyle = PAL.night;
-    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-    for (let y = 0; y < SCREEN_H; y += 6) {
-      ctx.fillStyle = (y / 6) % 2 ? '#22104a' : PAL.night;
-      ctx.fillRect(0, y, SCREEN_W, 3);
+    const world = menuWorld();
+    if (world) {
+      world.draw(ctx, this.t, 'options');
+      ctx.fillStyle = 'rgba(16,6,36,0.45)';
+      ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    }
+    else {
+      ctx.fillStyle = PAL.night;
+      ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+      for (let y = 0; y < SCREEN_H; y += 6) {
+        ctx.fillStyle = (y / 6) % 2 ? '#22104a' : PAL.night;
+        ctx.fillRect(0, y, SCREEN_W, 3);
+      }
     }
     outlinedText(ctx, 'OPÇÕES', SCREEN_W / 2, 24, PAL.yellow, 16);
-    panel(ctx, 72, 56, 240, 104, PAL.panel, PAL.panelLight);
+    panel(ctx, 72, 46, 240, 132, PAL.panel, PAL.panelLight);
     ROWS.forEach((label, i) => {
-      const y = 72 + i * 28;
+      const y = 56 + i * 25;
       const sel = this.row === i;
       if (sel) {
         ctx.fillStyle = '#3a1a6a';
@@ -68,6 +85,12 @@ export class OptionsScreen implements Screen {
         }
       } else if (label === 'TELA CHEIA') {
         text(ctx, document.fullscreenElement ? 'LIGADA' : 'DESLIGADA', 296, y, PAL.cyan, 8, 'right');
+      } else if (label === 'VISUAL 3D') {
+        text(ctx, this.settings.visual3d ? 'LIGADO' : 'DESLIGADO', 296, y, PAL.cyan, 8, 'right');
+        text(ctx, 'ESTILO NINTENDO 64', 100, y + 10, PAL.grey, 8);
+      } else if (label === 'PERSONAGENS 3D') {
+        text(ctx, this.settings.cast3d === 'trupe' ? 'A TRUPE' : 'EMOJIS', 296, y, PAL.cyan, 8, 'right');
+        text(ctx, this.settings.cast3d === 'trupe' ? 'O ELENCO DO SHORTPARTY' : 'O ELENCO ANTIGO', 100, y + 10, PAL.grey, 8);
       }
     });
     text(ctx, 'W/S ESCOLHE   A/D ALTERA   ESC VOLTA', SCREEN_W / 2, 184, PAL.grey, 8, 'center');

@@ -1,4 +1,4 @@
-﻿import { angleDiff, type Minigame, type MinigameDef } from '../../minigame';
+import { angleDiff, type Minigame, type MinigameDef } from '../../minigame';
 import type { BotDifficulty, GameEvent, PlayerId, PlayerInfo, PlayerInput, TickInput } from '../../types';
 import { NEUTRAL_INPUT } from '../../types';
 import { LAPS, TRACK_HALF_W, TRACK_LENGTH, pointOnTrack, projectOnTrack } from './track';
@@ -183,6 +183,14 @@ class KartRush implements Minigame<KartState> {
     return this.state.done;
   }
 
+  /** Minigames mode: the race is over and nobody fell, so the last kart still racing goes out. */
+  roundLosers(): PlayerId[] {
+    const racing = this.state.karts.filter((k) => k.status === 'race' || k.status === 'falling' || k.status === 'dead');
+    if (racing.length === 0) return [];
+    const last = racing.reduce((a, b) => (a.lap * TRACK_LENGTH + a.s <= b.lap * TRACK_LENGTH + b.s ? a : b));
+    return [last.id];
+  }
+
   drainEvents(): GameEvent[] {
     const e = this.events;
     this.events = [];
@@ -209,5 +217,6 @@ export const KartRushDef: MinigameDef = {
   name: 'KART RUSH',
   handle: '@kart.rush',
   hint: 'A/D CURVA  S FREIO  ESPAÇO DRIFT',
+  rounds: true,
   create: (players) => new KartRush(players),
 };

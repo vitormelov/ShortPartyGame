@@ -1,4 +1,4 @@
-﻿import { ARENA_H, ARENA_W } from '@shared/arena';
+import { ARENA_H, ARENA_W } from '@shared/arena';
 import { POLL_COLS, VOTE_TIME, type PollKind, type PollState } from '@shared/minigames/poll/logic';
 import { CHARACTERS, type PlayerId } from '@shared/types';
 import { PAL, outlinedText, panel, portrait, text } from '../core/draw';
@@ -37,7 +37,17 @@ function background(ctx: CanvasRenderingContext2D, time: number): void {
 
 export const pollRenderer: MinigameRenderer = {
   render(ctx, raw, time, localId: PlayerId) {
-    const st = raw as PollState;
+    drawPoll(ctx, raw as PollState, time, localId, true);
+  },
+};
+
+/** Where a candidate's card is (the 3D version stands the characters in them). */
+export function pollCard(i: number): [number, number, number, number] {
+  return [...cardPos(i), CARD_W, CARD_H];
+}
+
+/** The whole poll; without `portraits` the cards are left for the 3D characters. */
+export function drawPoll(ctx: CanvasRenderingContext2D, st: PollState, time: number, localId: PlayerId, portraits: boolean): void {
     background(ctx, time);
 
     // Story poll sticker.
@@ -61,7 +71,7 @@ export const pollRenderer: MinigameRenderer = {
         ctx.lineWidth = 2;
         ctx.strokeRect(x - 2, y - 2, CARD_W + 4, CARD_H + 4);
       }
-      portrait(ctx, c.character, x + CARD_W / 2 - 16, y + 2, 2, self);
+      if (portraits) portrait(ctx, c.character, x + CARD_W / 2 - 16, y + 2, 2, self);
       text(ctx, self ? 'VOCÊ' : CHARACTERS[c.character].name, x + CARD_W / 2, y + 36, self ? '#8a80a8' : CHARACTERS[c.character].dark, 8, 'center', null);
       if (winner) {
         // crown
@@ -110,5 +120,4 @@ export const pollRenderer: MinigameRenderer = {
       const msg = st.winners.length === 0 ? 'NINGUÉM VOTOU' : st.kind === 'gift' ? `${names} +1 VIDA!` : st.kind === 'spotlight' ? `${names} NO HOLOFOTE!` : 'APOSTAS FEITAS!';
       outlinedText(ctx, msg, 192, ARENA_H - 40, PAL.yellow, 8);
     }
-  },
-};
+}

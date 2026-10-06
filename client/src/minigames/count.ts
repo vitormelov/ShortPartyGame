@@ -57,14 +57,21 @@ export const countRenderer: MinigameRenderer = {
   render(ctx, raw, time, localId: PlayerId) {
     const st = raw as CountState;
     background(ctx, time);
-    const me = st.counters.find((c) => c.id === localId);
-
-    // The question is always on screen (works with tutorials off too).
-    panel(ctx, 40, 4, ARENA_W - 80, 16, 'rgba(10,6,20,0.9)', PAL.pink);
-    text(ctx, QUESTION[st.question], ARENA_W / 2, 8, st.question === 'all' ? PAL.cyan : PAL.yellow, 8, 'center');
 
     if (st.phase === 'count') {
       st.walkers.forEach((w, i) => drawThing(ctx, w.kind, w.x, w.y, Math.floor(time * 6 + i) % 2));
+      drawCountUi(ctx, st, localId);
+      return;
+    }
+    drawReveal(ctx, st, time, localId);
+  },
+};
+
+/** The question banner, timer and your guess box during the count (also drawn over the 3D field). */
+export function drawCountUi(ctx: CanvasRenderingContext2D, st: CountState, localId: PlayerId): void {
+      const me = st.counters.find((c) => c.id === localId);
+      panel(ctx, 40, 4, ARENA_W - 80, 16, 'rgba(10,6,20,0.9)', PAL.pink);
+      text(ctx, QUESTION[st.question], ARENA_W / 2, 8, st.question === 'all' ? PAL.cyan : PAL.yellow, 8, 'center');
       // Timer.
       const left = Math.max(0, 1 - st.phaseTime / COUNT_TIME);
       ctx.fillStyle = PAL.ink;
@@ -80,10 +87,14 @@ export const countRenderer: MinigameRenderer = {
       }
       const locked = st.counters.filter((c) => c.locked).length;
       if (locked) text(ctx, `${locked} CONFIRMARAM`, 60, ARENA_H - 30, PAL.grey, 8, 'center');
-      return;
-    }
+}
 
-    // Reveal: the counted ones line up one at a time, then everyone's guess.
+/** Reveal: the counted ones line up one at a time, then everyone's guess (2D in both versions). */
+export function drawReveal(ctx: CanvasRenderingContext2D, st: CountState, time: number, localId: PlayerId): void {
+    background(ctx, time);
+    const me = st.counters.find((c) => c.id === localId);
+    panel(ctx, 40, 4, ARENA_W - 80, 16, 'rgba(10,6,20,0.9)', PAL.pink);
+    text(ctx, QUESTION[st.question], ARENA_W / 2, 8, st.question === 'all' ? PAL.cyan : PAL.yellow, 8, 'center');
     const targets = st.walkers.filter((w) => w.counts);
     const step = Math.min(REVEAL_STEP, 1.6 / Math.max(1, targets.length));
     const shown = Math.min(targets.length, Math.floor(st.phaseTime / step) + 1);
@@ -115,5 +126,4 @@ export const countRenderer: MinigameRenderer = {
       const msg = me.result === 'best' ? 'CONTOU CERTINHO! +1' : me.result === 'exact' ? 'EXATO!' : me.result === 'ok' ? 'QUASE! SALVO' : `ERA ${st.answer}! -1`;
       outlinedText(ctx, msg, 192, 150, me.result === 'fail' ? PAL.red : PAL.green, 8);
     }
-  },
-};
+}

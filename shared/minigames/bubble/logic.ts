@@ -1,4 +1,4 @@
-﻿import type { Minigame, MinigameDef } from '../../minigame';
+import type { Minigame, MinigameDef } from '../../minigame';
 import { Rng } from '../../rng';
 import type { BotDifficulty, GameEvent, PlayerId, PlayerInfo, PlayerInput, TickInput } from '../../types';
 import { NEUTRAL_INPUT } from '../../types';
@@ -42,6 +42,8 @@ export interface BubbleState {
   balls: Ball[];
   radius: number;
   time: number;
+  /** Seconds at full heat: sudden death keeps shrinking the platform. */
+  sudden: number;
 }
 
 interface BotMemory {
@@ -94,13 +96,18 @@ class BolhaSocial implements Minigame<BubbleState> {
       }),
       radius: START_R,
       time: 0,
+      sudden: 0,
     };
   }
 
   update(dt: number, inputs: Map<PlayerId, TickInput>, heat: number): void {
     const st = this.state;
     st.time += dt;
-    st.radius = Math.max(MIN_R, START_R - st.time * 0.6 - heat * 18);
+    // Late in a match (high heat) it keeps shrinking past the usual minimum; at full heat
+    // (sudden death) it shrinks until there's only room for one.
+    if (heat >= 0.99) st.sudden += dt;
+    const floor = Math.max(BALL_R * 0.6, MIN_R * (1 - heat * 0.45) - st.sudden * 0.8);
+    st.radius = Math.max(floor, START_R - st.time * 0.6 - heat * 18);
 
     for (const b of st.balls) {
       if (b.status === 'falling') {

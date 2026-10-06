@@ -105,8 +105,12 @@ export const filterRenderer: MinigameRenderer = {
     for (const p of order) drawPlayer(ctx, p, time);
     const me = st.players.find((p) => p.id === localId);
     if (me && me.status === 'alive') localMarker(ctx, me.x, me.y - 11, time);
+    drawFilterCall(ctx, st);
+  },
+};
 
-    // The influencer's call: filter name on its color, with a draining timer.
+/** The influencer's call: filter name on its color, with a draining timer (also used by the 3D version). */
+export function drawFilterCall(ctx: CanvasRenderingContext2D, st: FilterState): void {
     const [name, color] = FILTERS[st.target];
     if (st.phase !== 'rise') {
       const w = 120;
@@ -122,5 +126,4 @@ export const filterRenderer: MinigameRenderer = {
         outlinedText(ctx, 'AFUNDOU!', ARENA_W / 2, 15, PAL.white, 8);
       }
     }
-  },
-};
+}

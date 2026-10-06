@@ -1,4 +1,4 @@
-﻿import { ARENA_H, ARENA_W } from '@shared/arena';
+import { ARENA_H, ARENA_W } from '@shared/arena';
 import type { AdState, AdViewer } from '@shared/minigames/ad/logic';
 import type { PlayerId } from '@shared/types';
 import { PAL, outlinedText, panel, portrait, text } from '../core/draw';
@@ -22,7 +22,27 @@ export const ADS: AdCopy[] = [
   { lines: ['PÍLULA', 'ANTI-SCROLL'], tagline: 'LARGUE O CELULAR!', fine: 'EFEITO COLATERAL: SCROLL', bg: ['#d83a3a', '#e84a4a'], accent: PAL.yellow, product: 'pill' },
 ];
 
+/**
+ * The 3D version draws the products and the people itself: while `on`, drawProduct and face only
+ * record where they would have drawn.
+ */
+export const artCapture = {
+  on: false,
+  products: [] as Array<{ kind: AdCopy['product']; x: number; y: number }>,
+  faces: [] as Array<{ character: number; x: number; y: number; scale: number; dead: boolean }>,
+};
+
+/** A portrait, or (in 3D) a note to put the character there. */
+export function face(ctx: CanvasRenderingContext2D, character: number, x: number, y: number, scale = 1, dead = false): void {
+  if (artCapture.on) artCapture.faces.push({ character, x, y, scale, dead });
+  else portrait(ctx, character, x, y, scale, dead);
+}
+
 export function drawProduct(ctx: CanvasRenderingContext2D, kind: AdCopy['product'], x: number, y: number, time: number): void {
+  if (artCapture.on) {
+    artCapture.products.push({ kind, x, y });
+    return;
+  }
   const bob = Math.round(Math.sin(time * 4) * 2);
   y += bob;
   ctx.fillStyle = 'rgba(20,6,46,0.25)';
@@ -169,7 +189,7 @@ export const adRenderer: MinigameRenderer = {
       const x = x0 + i * w;
       const y = 142;
       const bad = v.status === 'early' || v.status === 'late';
-      portrait(ctx, v.character, x + 12, y, 1, bad);
+      face(ctx, v.character, x + 12, y, 1, bad);
       const [label, color] = STATUS_LABEL[v.status];
       text(ctx, label, x + 20, y + 19, color, 8, 'center');
       if (v.id === localId) {
